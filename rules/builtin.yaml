@@ -1,0 +1,182 @@
+version: "1.0"
+rules:
+  # Line count checks
+  - code: CD001
+    description: File length is excessive
+    severity: error
+    category: length
+    matchSpec:
+      metric: lineCount
+      action: greaterThan
+      value: 300
+    errorMessage: "File has more than 300 lines"
+    suggestion: "Extract task-specific content to separate docs and use progressive disclosure"
+    links:
+      - "https://www.humanlayer.dev/blog/writing-a-good-claude-md"
+
+  - code: CD002
+    description: File length is high
+    severity: warning
+    category: length
+    matchSpec:
+      metric: lineCount
+      action: greaterThan
+      value: 100
+    errorMessage: "File has more than 100 lines"
+    suggestion: "Consider being more concise. Ideal CLAUDE.md is ~60 lines"
+
+  # Instruction count checks
+  - code: CD003
+    description: Too many instructions
+    severity: error
+    category: instructions
+    matchSpec:
+      metric: instructionCount
+      action: greaterThan
+      value: 100
+    errorMessage: "Too many instructions (>100 detected, +50 from Claude Code)"
+    suggestion: "LLMs reliably follow 150-200 instructions. Reduce instruction count"
+
+  - code: CD004
+    description: High instruction count
+    severity: warning
+    category: instructions
+    matchSpec:
+      metric: instructionCount
+      action: greaterThan
+      value: 50
+    errorMessage: "High instruction count (~50+ detected, +50 from Claude Code = ~100+)"
+    suggestion: "Consider reducing instructions to improve compliance"
+
+  # Linter abuse detection
+  - code: CD010
+    description: Indentation rules detected
+    severity: warning
+    category: linter-abuse
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "indent(ation)?\\s*(with|using)?\\s*\\d+\\s*(spaces?|tabs?)"
+    errorMessage: "Indentation rules found"
+    suggestion: "Use a code formatter instead of Claude for indentation rules"
+
+  - code: CD011
+    description: Line length rules detected
+    severity: warning
+    category: linter-abuse
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "(max|maximum)\\s*(line)?\\s*(length|width)"
+    errorMessage: "Line length rules found"
+    suggestion: "Use a linter for line length enforcement"
+
+  - code: CD012
+    description: Quote style rules detected
+    severity: warning
+    category: linter-abuse
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "(single|double)\\s*quotes?"
+        - "use\\s+(single|double)\\s+quotes"
+    errorMessage: "Quote style rules found"
+    suggestion: "Use a formatter (Prettier, Biome) for quote style"
+
+  - code: CD013
+    description: Naming convention rules detected
+    severity: warning
+    category: linter-abuse
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "naming\\s*convention"
+        - "use\\s+camelCase"
+        - "use\\s+snake_case"
+        - "use\\s+PascalCase"
+    errorMessage: "Naming convention rules found"
+    suggestion: "Use a linter for naming conventions"
+
+  - code: CD014
+    description: Semicolon rules detected
+    severity: warning
+    category: linter-abuse
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "(always|never)\\s*(use)?\\s*semicolons?"
+    errorMessage: "Semicolon rules found"
+    suggestion: "Use a formatter for semicolon style"
+
+  - code: CD015
+    description: Trailing character rules detected
+    severity: warning
+    category: linter-abuse
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "trailing\\s*(comma|whitespace|space)"
+    errorMessage: "Trailing character rules found"
+    suggestion: "Use a formatter for trailing characters"
+
+  # Auto-generated content detection
+  - code: CD020
+    description: Auto-generated marker detected
+    severity: warning
+    category: auto-generated
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "generated\\s*(by|with|using)"
+        - "auto-?generated"
+        - "this\\s+file\\s+was\\s+(created|generated)"
+    errorMessage: "File appears to be auto-generated"
+    suggestion: "CLAUDE.md is high-leverage. Carefully craft each line manually instead of using /init"
+
+  - code: CD021
+    description: Init command reference detected
+    severity: info
+    category: auto-generated
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "/init"
+        - "claude\\s+code\\s+initialized"
+    errorMessage: "References to /init command found"
+    suggestion: "Avoid using /init. Manually craft your CLAUDE.md for best results"
+
+  # Progressive disclosure checks
+  - code: CD030
+    description: No progressive disclosure
+    severity: info
+    category: progressive-disclosure
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: lineCount
+          action: greaterThan
+          value: 60
+        - action: regexNotMatch
+          patterns:
+            - "see\\s+[\\w/.-]+\\.md"
+            - "refer\\s+to\\s+[\\w/.-]+\\.md"
+            - "read\\s+[\\w/.-]+\\.md"
+            - "docs?/[\\w/.-]+\\.md"
+            - "check\\s+[\\w/.-]+\\.md"
+    errorMessage: "No progressive disclosure detected in a file over 60 lines"
+    suggestion: "Point to separate docs for task-specific information instead of including everything"
+
+  # Good practices detection (positive signals)
+  - code: CD040
+    description: Good progressive disclosure
+    severity: info
+    category: good-practice
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "see\\s+[\\w/.-]+\\.md"
+        - "refer\\s+to\\s+[\\w/.-]+\\.md"
+        - "docs?/[\\w/.-]+\\.md"
+        - "for\\s+.*\\s+see\\s+"
+    errorMessage: "Progressive disclosure pattern detected"
+    suggestion: ""

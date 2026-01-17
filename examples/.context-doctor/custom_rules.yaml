@@ -1,0 +1,27 @@
+version: "1.0"
+rules:
+  # Example: Company-specific rule
+  - code: ACME001
+    description: Missing ACME Corp standards reference
+    severity: warning
+    category: company-standards
+    matchSpec:
+      action: notContains
+      value: "acme"
+    errorMessage: "No reference to ACME Corp standards found"
+    suggestion: "Add a link to internal ACME coding standards"
+
+  # Example: Project-specific rule
+  - code: PROJ001
+    description: Missing test command
+    severity: info
+    category: project-specific
+    matchSpec:
+      action: regexNotMatch
+      patterns:
+        - "(npm|pnpm|yarn|bun)\\s+(run\\s+)?test"
+        - "go\\s+test"
+        - "pytest"
+        - "cargo\\s+test"
+    errorMessage: "No test command found"
+    suggestion: "Add instructions for running tests"
