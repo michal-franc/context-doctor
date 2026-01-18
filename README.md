@@ -4,9 +4,49 @@ A CLI tool that analyzes CLAUDE.md files and provides feedback on best practices
 
 ## Installation
 
+### Download binary (recommended)
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/michal-franc/context-doctor/releases).
+
+**Linux (amd64):**
+```bash
+curl -Lo context-doctor https://github.com/michal-franc/context-doctor/releases/latest/download/context-doctor-linux-amd64
+chmod +x context-doctor
+sudo mv context-doctor /usr/local/bin/
+```
+
+**Linux (arm64):**
+```bash
+curl -Lo context-doctor https://github.com/michal-franc/context-doctor/releases/latest/download/context-doctor-linux-arm64
+chmod +x context-doctor
+sudo mv context-doctor /usr/local/bin/
+```
+
+**macOS (Apple Silicon):**
+```bash
+curl -Lo context-doctor https://github.com/michal-franc/context-doctor/releases/latest/download/context-doctor-darwin-arm64
+chmod +x context-doctor
+sudo mv context-doctor /usr/local/bin/
+```
+
+**macOS (Intel):**
+```bash
+curl -Lo context-doctor https://github.com/michal-franc/context-doctor/releases/latest/download/context-doctor-darwin-amd64
+chmod +x context-doctor
+sudo mv context-doctor /usr/local/bin/
+```
+
+**Windows:**
+
+Download `context-doctor-windows-amd64.exe` from [releases](https://github.com/michal-franc/context-doctor/releases) and add to your PATH.
+
 ### From source
 
+Requires Go 1.21+.
+
 ```bash
+git clone https://github.com/michal-franc/context-doctor.git
+cd context-doctor
 make build
 ```
 
