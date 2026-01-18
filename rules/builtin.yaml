@@ -180,3 +180,127 @@ rules:
         - "for\\s+.*\\s+see\\s+"
     errorMessage: "Progressive disclosure pattern detected"
     suggestion: ""
+
+  # Generic advice detection
+  - code: CD050
+    description: Generic advice detected
+    severity: warning
+    category: generic-advice
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "write\\s+clean\\s+code"
+        - "follow\\s+best\\s+practices"
+        - "format\\s+(code\\s+)?properly"
+        - "use\\s+meaningful\\s+(variable\\s+)?names"
+        - "keep\\s+(code|it)\\s+simple"
+        - "write\\s+readable\\s+code"
+    errorMessage: "Generic advice found that applies to any project"
+    suggestion: "Replace generic advice with project-specific instructions and concrete examples"
+    links:
+      - "https://www.builder.io/blog/claude-md-guide"
+
+  # Missing project context
+  - code: CD051
+    description: Missing project context
+    severity: info
+    category: content-quality
+    matchSpec:
+      action: regexNotMatch
+      patterns:
+        - "^#\\s+.+"
+        - "this\\s+(project|repo|repository)"
+        - "purpose"
+        - "overview"
+    errorMessage: "No project description or context found"
+    suggestion: "Start with what the project is, not how to set it up. Add a brief project overview"
+    links:
+      - "https://www.builder.io/blog/claude-md-guide"
+
+  # Missing build/test commands
+  - code: CD052
+    description: Missing build commands
+    severity: info
+    category: content-quality
+    matchSpec:
+      action: regexNotMatch
+      patterns:
+        - "(npm|yarn|pnpm|bun)\\s+(run\\s+)?(test|build|lint)"
+        - "make\\s+(build|test|lint)"
+        - "go\\s+(build|test)"
+        - "cargo\\s+(build|test)"
+        - "pytest"
+        - "mvn\\s+(test|compile)"
+        - "gradle\\s+(build|test)"
+    errorMessage: "No build/test/lint commands found"
+    suggestion: "Include commands Claude needs to verify changes (test, build, lint)"
+    links:
+      - "https://www.builder.io/blog/claude-md-guide"
+
+  # No negative instructions
+  - code: CD053
+    description: No negative instructions
+    severity: info
+    category: content-quality
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: lineCount
+          action: greaterThan
+          value: 30
+        - action: regexNotMatch
+          patterns:
+            - "\\bdon'?t\\b"
+            - "\\bavoid\\b"
+            - "\\bnever\\b"
+            - "\\bdo\\s+not\\b"
+    errorMessage: "No negative instructions found in a file over 30 lines"
+    suggestion: "Specify what NOT to do, not just what to do. Negative instructions improve results"
+    links:
+      - "https://www.builder.io/blog/claude-md-guide"
+
+  # No code examples
+  - code: CD054
+    description: No code examples
+    severity: info
+    category: content-quality
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: lineCount
+          action: greaterThan
+          value: 50
+        - action: regexNotMatch
+          patterns:
+            - "```"
+    errorMessage: "No code examples found in a file over 50 lines"
+    suggestion: "Add concrete code examples. Examples trump abstract rules for style preferences"
+    links:
+      - "https://www.builder.io/blog/claude-md-guide"
+
+  # Good practice: Has negative instructions
+  - code: CD041
+    description: Good negative instructions
+    severity: info
+    category: good-practice
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "\\bdon'?t\\b"
+        - "\\bavoid\\b"
+        - "\\bnever\\b"
+        - "\\bdo\\s+not\\b"
+    errorMessage: "Negative instructions detected (what NOT to do)"
+    suggestion: ""
+
+  # Good practice: Has code examples
+  - code: CD042
+    description: Good code examples
+    severity: info
+    category: good-practice
+    matchSpec:
+      action: regexMatch
+      patterns:
+        - "```"
+    errorMessage: "Code examples detected"
+    suggestion: ""

@@ -43,6 +43,20 @@ These rules detect formatting/style rules that should be handled by dedicated to
 | CD030 | info | No progressive disclosure detected in a file over 60 lines. Point to separate docs for task-specific information. |
 | CD040 | info | (Good practice) Progressive disclosure pattern detected. |
 
+## Content Quality
+
+Based on [The Complete Guide to CLAUDE.md](https://www.builder.io/blog/claude-md-guide).
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| CD050 | warning | Generic advice detected (e.g., "write clean code", "follow best practices"). Replace with project-specific instructions. |
+| CD051 | info | No project description or context found. Start with what the project is. |
+| CD052 | info | No build/test/lint commands found. Include commands Claude needs to verify changes. |
+| CD053 | info | No negative instructions in a file over 30 lines. Specify what NOT to do, not just what to do. |
+| CD054 | info | No code examples in a file over 50 lines. Concrete examples trump abstract rules. |
+| CD041 | info | (Good practice) Negative instructions detected (don't, avoid, never). |
+| CD042 | info | (Good practice) Code examples detected. |
+
 ## Custom Rules
 
 You can create custom rules by adding YAML files to a `.context-doctor/` directory. Rules follow this structure:
