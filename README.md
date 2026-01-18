@@ -2,6 +2,56 @@
 
 A CLI tool that analyzes CLAUDE.md files and provides feedback on best practices for Claude Code context management.
 
+## Why this matters
+
+When working with AI coding agents, your context grows throughout a session. It's tempting to tell the agent to update your CLAUDE.md/AGENTS.md with learnings so future sessions start with a better foundation. But this often leads to bloated files with conflicting instructions.
+
+Your initial CLAUDE.md instructions are **critical** for two reasons:
+
+1. **Instruction count affects performance** - LLMs can reliably follow ~150-200 instructions. Claude Code's system prompt already uses [~50 instructions](https://www.humanlayer.dev/blog/writing-a-good-claude-md) according to HumanLayer's analysis. Every instruction you add competes for attention, and as count increases, compliance decreases uniformly across all instructions.
+
+2. **Position matters** - Due to the ["Lost in the Middle"](https://arxiv.org/abs/2307.03172) phenomenon, LLMs exhibit a U-shaped attention curve: they best recall information at the **beginning** and **end** of context, while information in the middle gets overlooked. Your CLAUDE.md sits at the beginning - make every line count.
+
+context-doctor helps you maintain a lean, effective CLAUDE.md by detecting common anti-patterns before they degrade your agent's performance.
+
+## The problem
+
+There are three approaches to maintaining your CLAUDE.md:
+
+### 1. Unsupervised agent updates
+
+In the agentic world, we often just tell the agent "update CLAUDE.md with what you learned" or "create a CLAUDE.md for this project."
+
+![Unsupervised flow](unsupervised_flow.jpg)
+
+This leads to CLAUDE.md files that grow chaotically:
+- Instructions get added but never removed
+- Conflicting rules accumulate over time
+- Generic advice dilutes project-specific guidance
+- The file becomes a dumping ground for "lessons learned"
+
+### 2. Using custom prompts
+
+This can be mitigated with a [custom prompt for updating CLAUDE.md](https://www.aihero.dev/a-complete-guide-to-agents-md) as suggested by Matt Pocock - but that requires you to remember to use the prompt every time.
+
+![Using patterns.md](using_patterns_md.jpg)
+
+### 3. Using context-doctor (self-reinforcing loop)
+
+context-doctor takes a different approach: it provides a standalone binary with predefined rules (based on research and best practices) that evaluates your CLAUDE.md, generates a report, and suggests specific changes.
+
+![Using context-doctor](using_context_doctor.jpg)
+
+You can tell the agent to use context-doctor itself, creating a self-reinforcing loop:
+
+```
+> Run context-doctor on CLAUDE.md and fix any issues it finds
+```
+
+The agent runs the analysis, reads the report, and applies fixes - all validated against the same rules. Run it periodically or add it to your CI pipeline to keep your CLAUDE.md healthy.
+
+**Note:** This project is in early alpha. Rules and scoring are still being refined.
+
 ## Installation
 
 ### Download binary (recommended)
@@ -188,10 +238,8 @@ Based on the analysis, here are my recommendations:
 
 **Suggested Improvements:**
 
-1. Remove formatting rules and add a `.prettierrc` instead:
-   ```json
+1. Remove formatting rules and add a .prettierrc instead:
    { "singleQuote": true, "tabWidth": 2 }
-   ```
 
 2. Replace generic instructions with project-specific context:
    - What makes this codebase unique?
