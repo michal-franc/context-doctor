@@ -1,4 +1,7 @@
 # Writing a good CLAUDE.md
+
+Source: https://www.humanlayer.dev/blog/writing-a-good-claude-md
+
 Kyle · November 25, 2025 · < 10 min read
 
 Note: this post is also applicable to AGENTS.md, the open-source equivalent of CLAUDE.md for agents and harnesses like OpenCode, Zed, Cursor and Codex.
