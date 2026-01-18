@@ -52,6 +52,85 @@ The agent runs the analysis, reads the report, and applies fixes - all validated
 
 **Note:** This project is in early alpha. Rules and scoring are still being refined.
 
+## Example Output
+
+![Example report](example.jpg)
+
+<details>
+<summary>Text output</summary>
+
+Analyzing a CLAUDE.md with issues:
+
+```
+============================================================
+  CLAUDE.md Analysis Report
+============================================================
+
+File: examples/bad_claude.md
+
+METRICS
+----------------------------------------
+  Lines:        60 (OK)
+  Instructions: ~37 (+50 Claude = ~87) (OK)
+  Progressive Disclosure: NO
+
+LINTER ABUSE DETECTED
+----------------------------------------
+  ⚠ [CD011] Line length rules found
+     → Use a linter for line length enforcement
+  ⚠ [CD012] Quote style rules found
+     → Use a formatter (Prettier, Biome) for quote style
+  ⚠ [CD013] Naming convention rules found
+     → Use a linter for naming conventions
+  ⚠ [CD014] Semicolon rules found
+     → Use a formatter for semicolon style
+  ⚠ [CD015] Trailing character rules found
+     → Use a formatter for trailing characters
+
+AUTO-GENERATED CONTENT
+----------------------------------------
+  ⚠ [CD020] File appears to be auto-generated
+     → CLAUDE.md is high-leverage. Carefully craft each line manually instead of using /init
+
+OVERALL SCORE
+----------------------------------------
+  65/100
+```
+
+Analyzing a well-crafted CLAUDE.md:
+
+```
+============================================================
+  CLAUDE.md Analysis Report
+============================================================
+
+File: examples/good_claude.md
+
+METRICS
+----------------------------------------
+  Lines:        25 (OK)
+  Instructions: ~6 (+50 Claude = ~56) (OK)
+  Progressive Disclosure: YES
+
+GOOD PRACTICES DETECTED
+----------------------------------------
+  ✓ [CD040] Progressive disclosure pattern detected
+
+PROGRESSIVE DISCLOSURE REFERENCES
+----------------------------------------
+  - docs/architecture.md
+  - docs/api-patterns.md
+  - docs/testing.md
+
+OVERALL SCORE
+----------------------------------------
+  95/100
+
+  ✓ Excellent! Your CLAUDE.md follows best practices.
+```
+
+</details>
+
 ## Installation
 
 ### Download binary (recommended)
@@ -143,78 +222,6 @@ context-doctor -verbose ./CLAUDE.md
 
 # Only show errors
 context-doctor -severities error ./CLAUDE.md
-```
-
-### Example Output
-
-Analyzing a CLAUDE.md with issues:
-
-```
-============================================================
-  CLAUDE.md Analysis Report
-============================================================
-
-File: examples/bad_claude.md
-
-METRICS
-----------------------------------------
-  Lines:        60 (OK)
-  Instructions: ~37 (+50 Claude = ~87) (OK)
-  Progressive Disclosure: NO
-
-LINTER ABUSE DETECTED
-----------------------------------------
-  ⚠ [CD011] Line length rules found
-     → Use a linter for line length enforcement
-  ⚠ [CD012] Quote style rules found
-     → Use a formatter (Prettier, Biome) for quote style
-  ⚠ [CD013] Naming convention rules found
-     → Use a linter for naming conventions
-  ⚠ [CD014] Semicolon rules found
-     → Use a formatter for semicolon style
-  ⚠ [CD015] Trailing character rules found
-     → Use a formatter for trailing characters
-
-AUTO-GENERATED CONTENT
-----------------------------------------
-  ⚠ [CD020] File appears to be auto-generated
-     → CLAUDE.md is high-leverage. Carefully craft each line manually instead of using /init
-
-OVERALL SCORE
-----------------------------------------
-  65/100
-```
-
-Analyzing a well-crafted CLAUDE.md:
-
-```
-============================================================
-  CLAUDE.md Analysis Report
-============================================================
-
-File: examples/good_claude.md
-
-METRICS
-----------------------------------------
-  Lines:        25 (OK)
-  Instructions: ~6 (+50 Claude = ~56) (OK)
-  Progressive Disclosure: YES
-
-GOOD PRACTICES DETECTED
-----------------------------------------
-  ✓ [CD040] Progressive disclosure pattern detected
-
-PROGRESSIVE DISCLOSURE REFERENCES
-----------------------------------------
-  - docs/architecture.md
-  - docs/api-patterns.md
-  - docs/testing.md
-
-OVERALL SCORE
-----------------------------------------
-  95/100
-
-  ✓ Excellent! Your CLAUDE.md follows best practices.
 ```
 
 ### Using with Claude Code
