@@ -65,7 +65,7 @@ Based on [The Complete Guide to CLAUDE.md](https://www.builder.io/blog/claude-md
 
 ## Referenced Documentation (primary)
 
-These rules validate files referenced via progressive disclosure (e.g., "see docs/architecture.md"). References are followed **recursively** — if `docs/architecture.md` references `docs/patterns.md`, the full tree is resolved. Circular references are detected and broken automatically.
+These rules validate files referenced via progressive disclosure (e.g., `"see <path>.md"`). References are followed **recursively** — if `A.md` references `B.md`, the full tree is resolved. Circular references are detected and broken automatically.
 
 | Code | Severity | Description |
 |------|----------|-------------|
