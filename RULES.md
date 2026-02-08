@@ -57,6 +57,30 @@ Based on [The Complete Guide to CLAUDE.md](https://www.builder.io/blog/claude-md
 | CD041 | info | (Good practice) Negative instructions detected (don't, avoid, never). |
 | CD042 | info | (Good practice) Code examples detected. |
 
+## Referenced Documentation
+
+These rules validate files referenced via progressive disclosure (e.g., "see docs/architecture.md").
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| CD031 | error | Referenced documentation file not found. Remove broken references or create the missing files. |
+| CD032 | warning | Referenced documentation file is stale (not updated in 90+ days). Review and update or remove. |
+| CD033 | warning | Combined instruction count across all context files exceeds 200. Trim instructions. |
+
+## Cross-File Consistency
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| CD034 | warning | Same instructions found in multiple context files. Keep each instruction in one place. |
+
+## Repository-Level Rules
+
+These rules only fire when scanning a directory (`context-doctor .`).
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| CD060 | error | Multiple CLAUDE.md files detected. A repo should have exactly one CLAUDE.md at the root. Use progressive disclosure to reference supporting docs. |
+
 ## Custom Rules
 
 You can create custom rules by adding YAML files to a `.context-doctor/` directory. Rules follow this structure:

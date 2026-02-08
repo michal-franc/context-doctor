@@ -196,7 +196,7 @@ Make sure `~/go/bin` is in your PATH.
 ## Usage
 
 ```bash
-context-doctor [options] <path-to-CLAUDE.md>
+context-doctor [options] <path-to-CLAUDE.md | directory>
 ```
 
 ### Options
@@ -209,13 +209,17 @@ context-doctor [options] <path-to-CLAUDE.md>
 | `-score` | Show overall score (default: true) |
 | `-categories` | Filter by categories (comma-separated) |
 | `-severities` | Filter by severities: error, warning, info (comma-separated) |
+| `-stale-threshold` | Days before a referenced doc is considered stale (default: 90) |
 | `-version` | Show version information |
 
 ### Example
 
 ```bash
-# Analyze a CLAUDE.md file
+# Analyze a single CLAUDE.md file
 context-doctor ./CLAUDE.md
+
+# Scan an entire repository
+context-doctor .
 
 # Verbose output with all checks
 context-doctor -verbose ./CLAUDE.md
@@ -223,6 +227,16 @@ context-doctor -verbose ./CLAUDE.md
 # Only show errors
 context-doctor -severities error ./CLAUDE.md
 ```
+
+### Repository mode
+
+When you pass a directory, context-doctor finds all `CLAUDE.md` files (respecting `.gitignore`) and produces a consolidated repo report:
+
+- Detects multiple `CLAUDE.md` files (a repo should have exactly one)
+- Validates referenced docs exist and aren't stale
+- Finds orphan `.md` files not referenced by any `CLAUDE.md`
+- Detects duplicated instructions across files
+- Shows aggregate metrics and per-file scores
 
 ### Using with Claude Code
 
@@ -267,6 +281,9 @@ Would you like me to help rewrite your CLAUDE.md?
 - **Linter abuse** - Rules that should be handled by formatters/linters
 - **Auto-generated content** - Detects `/init` generated files
 - **Progressive disclosure** - Encourages linking to separate docs
+- **Referenced docs** - Validates referenced files exist and aren't stale
+- **Cross-file consistency** - Detects duplicated instructions across files
+- **Repo-level checks** - Enforces single CLAUDE.md, finds orphan docs
 
 See [RULES.md](RULES.md) for the complete list of rules.
 
