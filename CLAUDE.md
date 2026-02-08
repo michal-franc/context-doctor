@@ -36,6 +36,12 @@ Run `make coverage` to generate a coverage report. This produces:
 
 Quick coverage check: `go test ./... -cover`
 
+**Readability principles:**
+- Use table-driven tests when inputs/outputs vary but structure is the same
+- Keep tests with unique setup (temp dirs, complex nested structs) as individual functions
+- Every test name should describe the scenario, not the expected result
+- Prefer `t.Run` subtests within tables for clear failure output
+
 ### Key Docs
 
 - `RULES.md` - Complete reference for all built-in rules and custom rule authoring

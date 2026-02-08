@@ -18,551 +18,471 @@ func makeCtx(content string, lineCount, instrCount int, metrics map[string]any) 
 	}
 }
 
-// --- getMetricValue ---
+// =============================================================================
+// Type conversion helpers
+// =============================================================================
 
-func TestGetMetricValue_LineCount(t *testing.T) {
-	ctx := makeCtx("", 42, 0, nil)
-	v := getMetricValue(ctx, MetricLineCount)
-	if v != 42 {
-		t.Errorf("expected 42, got %v", v)
+func TestGetMetricValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctx     *AnalysisContext
+		metric  MetricType
+		want    any
+	}{
+		{"lineCount", makeCtx("", 42, 0, nil), MetricLineCount, 42},
+		{"instructionCount", makeCtx("", 0, 15, nil), MetricInstructionCount, 15},
+		{"content", makeCtx("hello world", 0, 0, nil), MetricContent, "hello world"},
+		{"custom metric from map", makeCtx("", 0, 0, map[string]any{"custom_key": 99}), MetricType("custom_key"), 99},
+		{"unknown metric returns nil", makeCtx("", 0, 0, nil), MetricType("nonexistent"), nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := getMetricValue(tc.ctx, tc.metric); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestGetMetricValue_InstructionCount(t *testing.T) {
-	ctx := makeCtx("", 0, 15, nil)
-	v := getMetricValue(ctx, MetricInstructionCount)
-	if v != 15 {
-		t.Errorf("expected 15, got %v", v)
+func TestToInt(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  any
+		want   int
+		wantOK bool
+	}{
+		{"int", 42, 42, true},
+		{"int64", int64(100), 100, true},
+		{"float64 truncates", float64(7.9), 7, true},
+		{"string fails", "not a number", 0, false},
+		{"nil fails", nil, 0, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := toInt(tc.input)
+			if ok != tc.wantOK || (ok && got != tc.want) {
+				t.Errorf("toInt(%v) = (%d, %v), want (%d, %v)", tc.input, got, ok, tc.want, tc.wantOK)
+			}
+		})
 	}
 }
 
-func TestGetMetricValue_Content(t *testing.T) {
-	ctx := makeCtx("hello world", 0, 0, nil)
-	v := getMetricValue(ctx, MetricContent)
-	if v != "hello world" {
-		t.Errorf("expected 'hello world', got %v", v)
+func TestToString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		want  string
+	}{
+		{"string passes through", "hello", "hello"},
+		{"int returns empty", 42, ""},
+		{"nil returns empty", nil, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := toString(tc.input); got != tc.want {
+				t.Errorf("toString(%v) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
 	}
 }
 
-func TestGetMetricValue_CustomMetric(t *testing.T) {
-	ctx := makeCtx("", 0, 0, map[string]any{"custom_key": 99})
-	v := getMetricValue(ctx, MetricType("custom_key"))
-	if v != 99 {
-		t.Errorf("expected 99, got %v", v)
+// =============================================================================
+// Numeric comparison actions
+// =============================================================================
+
+func TestCheckLessThan(t *testing.T) {
+	tests := []struct {
+		name      string
+		metric    MetricType
+		lineCount int
+		content   string
+		value     any
+		want      bool
+	}{
+		{"below threshold", MetricLineCount, 50, "", 100, true},
+		{"above threshold", MetricLineCount, 200, "", 100, false},
+		{"equal is not less", MetricLineCount, 100, "", 100, false},
+		{"non-numeric metric", MetricContent, 0, "text", 100, false},
+		{"non-numeric value", MetricLineCount, 50, "", "NaN", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := makeCtx(tc.content, tc.lineCount, 0, nil)
+			spec := &MatchSpec{Metric: tc.metric, Action: ActionLessThan, Value: tc.value}
+			if got := checkLessThan(ctx, spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestGetMetricValue_UnknownMetric(t *testing.T) {
-	ctx := makeCtx("", 0, 0, nil)
-	v := getMetricValue(ctx, MetricType("nonexistent"))
-	if v != nil {
-		t.Errorf("expected nil, got %v", v)
+func TestCheckGreaterThan(t *testing.T) {
+	tests := []struct {
+		name       string
+		metric     MetricType
+		lineCount  int
+		instrCount int
+		value      any
+		want       bool
+	}{
+		{"above threshold", MetricLineCount, 200, 0, 100, true},
+		{"below threshold", MetricLineCount, 50, 0, 100, false},
+		{"works with instructionCount", MetricInstructionCount, 0, 30, 20, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := makeCtx("", tc.lineCount, tc.instrCount, nil)
+			spec := &MatchSpec{Metric: tc.metric, Action: ActionGreaterThan, Value: tc.value}
+			if got := checkGreaterThan(ctx, spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-// --- toInt ---
+// =============================================================================
+// Equality actions
+// =============================================================================
 
-func TestToInt_Int(t *testing.T) {
-	v, ok := toInt(42)
-	if !ok || v != 42 {
-		t.Errorf("expected (42, true), got (%d, %v)", v, ok)
+func TestCheckEquals(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  *AnalysisContext
+		spec *MatchSpec
+		want bool
+	}{
+		{"int match", makeCtx("", 50, 0, nil), &MatchSpec{Metric: MetricLineCount, Value: 50}, true},
+		{"int mismatch", makeCtx("", 50, 0, nil), &MatchSpec{Metric: MetricLineCount, Value: 99}, false},
+		{"string match", makeCtx("hello", 0, 0, nil), &MatchSpec{Metric: MetricContent, Value: "hello"}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := checkEquals(tc.ctx, tc.spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestToInt_Int64(t *testing.T) {
-	v, ok := toInt(int64(100))
-	if !ok || v != 100 {
-		t.Errorf("expected (100, true), got (%d, %v)", v, ok)
+func TestCheckNotEquals(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		want  bool
+	}{
+		{"different values", 99, true},
+		{"same value", 50, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := makeCtx("", 50, 0, nil)
+			spec := &MatchSpec{Metric: MetricLineCount, Value: tc.value}
+			if got := checkNotEquals(ctx, spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestToInt_Float64(t *testing.T) {
-	v, ok := toInt(float64(7.9))
-	if !ok || v != 7 {
-		t.Errorf("expected (7, true), got (%d, %v)", v, ok)
+// =============================================================================
+// Substring actions (contains / notContains)
+// =============================================================================
+
+func TestCheckContains(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctx     *AnalysisContext
+		spec    *MatchSpec
+		want    bool
+	}{
+		{"single value found",
+			makeCtx("Always use gofmt for formatting", 0, 0, nil),
+			&MatchSpec{Action: ActionContains, Value: "gofmt"}, true},
+		{"case insensitive",
+			makeCtx("Always use GOFMT for formatting", 0, 0, nil),
+			&MatchSpec{Action: ActionContains, Value: "gofmt"}, true},
+		{"value not found",
+			makeCtx("Use eslint for linting", 0, 0, nil),
+			&MatchSpec{Action: ActionContains, Value: "gofmt"}, false},
+		{"patterns — one matches",
+			makeCtx("Use eslint for linting", 0, 0, nil),
+			&MatchSpec{Action: ActionContains, Patterns: []string{"gofmt", "eslint", "prettier"}}, true},
+		{"patterns — none match",
+			makeCtx("Use standard library only", 0, 0, nil),
+			&MatchSpec{Action: ActionContains, Patterns: []string{"gofmt", "eslint", "prettier"}}, false},
+		{"nil value and no patterns",
+			makeCtx("some content", 0, 0, nil),
+			&MatchSpec{Action: ActionContains}, false},
+		{"custom metric",
+			makeCtx("", 0, 0, map[string]any{"custom": "hello world"}),
+			&MatchSpec{Metric: MetricType("custom"), Action: ActionContains, Value: "hello"}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := checkContains(tc.ctx, tc.spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestToInt_String(t *testing.T) {
-	_, ok := toInt("not a number")
-	if ok {
-		t.Error("expected ok=false for string input")
+func TestCheckNotContains(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  *AnalysisContext
+		spec *MatchSpec
+		want bool
+	}{
+		{"value absent",
+			makeCtx("Use standard library only", 0, 0, nil),
+			&MatchSpec{Action: ActionNotContains, Value: "gofmt"}, true},
+		{"value present",
+			makeCtx("Always use gofmt", 0, 0, nil),
+			&MatchSpec{Action: ActionNotContains, Value: "gofmt"}, false},
+		{"patterns — all absent",
+			makeCtx("Clean code", 0, 0, nil),
+			&MatchSpec{Action: ActionNotContains, Patterns: []string{"gofmt", "eslint"}}, true},
+		{"patterns — one present",
+			makeCtx("Use gofmt for formatting", 0, 0, nil),
+			&MatchSpec{Action: ActionNotContains, Patterns: []string{"gofmt", "eslint"}}, false},
+		{"nil value and no patterns",
+			makeCtx("some content", 0, 0, nil),
+			&MatchSpec{Action: ActionNotContains}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := checkNotContains(tc.ctx, tc.spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestToInt_Nil(t *testing.T) {
-	_, ok := toInt(nil)
-	if ok {
-		t.Error("expected ok=false for nil")
+// =============================================================================
+// Regex actions
+// =============================================================================
+
+func TestCheckRegexMatch(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  *AnalysisContext
+		spec *MatchSpec
+		want bool
+	}{
+		{"single value matches",
+			makeCtx("Version 2.3.1 released", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexMatch, Value: `\d+\.\d+\.\d+`}, true},
+		{"single value no match",
+			makeCtx("No version here", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexMatch, Value: `\d+\.\d+\.\d+`}, false},
+		{"patterns — second matches",
+			makeCtx("disable all checks", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexMatch, Patterns: []string{`^version`, `disable.*checks`}}, true},
+		{"patterns — none match",
+			makeCtx("clean code", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexMatch, Patterns: []string{`^version`, `disable.*checks`}}, false},
+		{"invalid regex returns false",
+			makeCtx("test", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexMatch, Value: `[invalid`}, false},
+		{"invalid pattern skipped, valid one matches",
+			makeCtx("good match here", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexMatch, Patterns: []string{`[invalid`, `good match`}}, true},
+		{"nil value and no patterns",
+			makeCtx("some content", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexMatch}, false},
+		{"case insensitive",
+			makeCtx("ALWAYS USE GOFMT", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexMatch, Value: "always use gofmt"}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := checkRegexMatch(tc.ctx, tc.spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-// --- toString ---
-
-func TestToString_String(t *testing.T) {
-	if toString("hello") != "hello" {
-		t.Error("expected 'hello'")
+func TestCheckRegexNotMatch(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  *AnalysisContext
+		spec *MatchSpec
+		want bool
+	}{
+		{"no match returns true",
+			makeCtx("clean code", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexNotMatch, Value: `\d+\.\d+`}, true},
+		{"match returns false",
+			makeCtx("version 1.2", 0, 0, nil),
+			&MatchSpec{Action: ActionRegexNotMatch, Value: `\d+\.\d+`}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := checkRegexNotMatch(tc.ctx, tc.spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestToString_NonString(t *testing.T) {
-	if toString(42) != "" {
-		t.Error("expected empty string for non-string type")
+// =============================================================================
+// Presence actions (isPresent / notPresent)
+// =============================================================================
+
+func TestCheckIsPresent(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  *AnalysisContext
+		spec *MatchSpec
+		want bool
+	}{
+		{"regex pattern found",
+			makeCtx("# Build & Test\nmake build\nmake test", 0, 0, nil),
+			&MatchSpec{Action: ActionIsPresent, Patterns: []string{`make\s+test`, `npm\s+test`}}, true},
+		{"regex pattern not found",
+			makeCtx("# Simple readme", 0, 0, nil),
+			&MatchSpec{Action: ActionIsPresent, Patterns: []string{`make\s+test`, `npm\s+test`}}, false},
+		{"single value found",
+			makeCtx("use gofmt for formatting", 0, 0, nil),
+			&MatchSpec{Action: ActionIsPresent, Value: "gofmt"}, true},
+		{"invalid regex falls back to literal match",
+			makeCtx("some [bracket content", 0, 0, nil),
+			&MatchSpec{Action: ActionIsPresent, Patterns: []string{`[bracket`}}, true},
+		{"nil value and no patterns",
+			makeCtx("some content", 0, 0, nil),
+			&MatchSpec{Action: ActionIsPresent}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := checkIsPresent(tc.ctx, tc.spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestToString_Nil(t *testing.T) {
-	if toString(nil) != "" {
-		t.Error("expected empty string for nil")
+func TestCheckNotPresent(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  *AnalysisContext
+		spec *MatchSpec
+		want bool
+	}{
+		{"pattern absent",
+			makeCtx("clean code", 0, 0, nil),
+			&MatchSpec{Action: ActionNotPresent, Patterns: []string{`deprecated`}}, true},
+		{"pattern present",
+			makeCtx("this is deprecated", 0, 0, nil),
+			&MatchSpec{Action: ActionNotPresent, Patterns: []string{`deprecated`}}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := checkNotPresent(tc.ctx, tc.spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-// --- checkLessThan ---
+// =============================================================================
+// Logical combinators (and / or)
+// =============================================================================
 
-func TestCheckLessThan_True(t *testing.T) {
-	ctx := makeCtx("", 50, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionLessThan, Value: 100}
-	if !checkLessThan(ctx, spec) {
-		t.Error("expected 50 < 100 to be true")
-	}
+func TestCheckAnd(t *testing.T) {
+	t.Run("all sub-specs pass", func(t *testing.T) {
+		ctx := makeCtx("use gofmt and eslint", 50, 10, nil)
+		spec := &MatchSpec{
+			Action: ActionAnd,
+			SubMatch: []MatchSpec{
+				{Action: ActionContains, Value: "gofmt"},
+				{Metric: MetricLineCount, Action: ActionLessThan, Value: 100},
+			},
+		}
+		if !checkAnd(ctx, spec) {
+			t.Error("expected true")
+		}
+	})
+
+	t.Run("one sub-spec fails", func(t *testing.T) {
+		ctx := makeCtx("use gofmt", 200, 0, nil)
+		spec := &MatchSpec{
+			Action: ActionAnd,
+			SubMatch: []MatchSpec{
+				{Action: ActionContains, Value: "gofmt"},
+				{Metric: MetricLineCount, Action: ActionLessThan, Value: 100},
+			},
+		}
+		if checkAnd(ctx, spec) {
+			t.Error("expected false")
+		}
+	})
+
+	t.Run("empty subMatch returns true", func(t *testing.T) {
+		ctx := makeCtx("", 0, 0, nil)
+		spec := &MatchSpec{Action: ActionAnd, SubMatch: []MatchSpec{}}
+		if !checkAnd(ctx, spec) {
+			t.Error("expected true (vacuous truth)")
+		}
+	})
 }
 
-func TestCheckLessThan_False(t *testing.T) {
-	ctx := makeCtx("", 200, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionLessThan, Value: 100}
-	if checkLessThan(ctx, spec) {
-		t.Error("expected 200 < 100 to be false")
-	}
+func TestCheckOr(t *testing.T) {
+	t.Run("one sub-spec passes", func(t *testing.T) {
+		ctx := makeCtx("use gofmt", 200, 0, nil)
+		spec := &MatchSpec{
+			Action: ActionOr,
+			SubMatch: []MatchSpec{
+				{Action: ActionContains, Value: "gofmt"},
+				{Metric: MetricLineCount, Action: ActionLessThan, Value: 100},
+			},
+		}
+		if !checkOr(ctx, spec) {
+			t.Error("expected true")
+		}
+	})
+
+	t.Run("all sub-specs fail", func(t *testing.T) {
+		ctx := makeCtx("clean code", 200, 0, nil)
+		spec := &MatchSpec{
+			Action: ActionOr,
+			SubMatch: []MatchSpec{
+				{Action: ActionContains, Value: "gofmt"},
+				{Metric: MetricLineCount, Action: ActionLessThan, Value: 100},
+			},
+		}
+		if checkOr(ctx, spec) {
+			t.Error("expected false")
+		}
+	})
+
+	t.Run("empty subMatch returns false", func(t *testing.T) {
+		ctx := makeCtx("", 0, 0, nil)
+		spec := &MatchSpec{Action: ActionOr, SubMatch: []MatchSpec{}}
+		if checkOr(ctx, spec) {
+			t.Error("expected false")
+		}
+	})
 }
 
-func TestCheckLessThan_Equal(t *testing.T) {
-	ctx := makeCtx("", 100, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionLessThan, Value: 100}
-	if checkLessThan(ctx, spec) {
-		t.Error("expected 100 < 100 to be false")
-	}
-}
+// =============================================================================
+// EvaluateSpec dispatcher
+// =============================================================================
 
-func TestCheckLessThan_NonNumericMetric(t *testing.T) {
-	ctx := makeCtx("text", 0, 0, nil)
-	spec := &MatchSpec{Metric: MetricContent, Action: ActionLessThan, Value: 100}
-	if checkLessThan(ctx, spec) {
-		t.Error("expected false for non-numeric metric")
-	}
-}
+func TestEvaluateSpec(t *testing.T) {
+	t.Run("dispatches to correct action", func(t *testing.T) {
+		ctx := makeCtx("", 50, 0, nil)
+		spec := &MatchSpec{Metric: MetricLineCount, Action: ActionLessThan, Value: 100}
+		if !EvaluateSpec(ctx, spec) {
+			t.Error("expected true (50 < 100)")
+		}
+	})
 
-func TestCheckLessThan_NonNumericValue(t *testing.T) {
-	ctx := makeCtx("", 50, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionLessThan, Value: "not a number"}
-	if checkLessThan(ctx, spec) {
-		t.Error("expected false for non-numeric value")
-	}
-}
-
-// --- checkGreaterThan ---
-
-func TestCheckGreaterThan_True(t *testing.T) {
-	ctx := makeCtx("", 200, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionGreaterThan, Value: 100}
-	if !checkGreaterThan(ctx, spec) {
-		t.Error("expected 200 > 100 to be true")
-	}
-}
-
-func TestCheckGreaterThan_False(t *testing.T) {
-	ctx := makeCtx("", 50, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionGreaterThan, Value: 100}
-	if checkGreaterThan(ctx, spec) {
-		t.Error("expected 50 > 100 to be false")
-	}
-}
-
-func TestCheckGreaterThan_InstructionCount(t *testing.T) {
-	ctx := makeCtx("", 0, 30, nil)
-	spec := &MatchSpec{Metric: MetricInstructionCount, Action: ActionGreaterThan, Value: 20}
-	if !checkGreaterThan(ctx, spec) {
-		t.Error("expected 30 > 20 to be true")
-	}
-}
-
-// --- checkEquals ---
-
-func TestCheckEquals_IntMatch(t *testing.T) {
-	ctx := makeCtx("", 50, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionEquals, Value: 50}
-	if !checkEquals(ctx, spec) {
-		t.Error("expected 50 == 50")
-	}
-}
-
-func TestCheckEquals_IntMismatch(t *testing.T) {
-	ctx := makeCtx("", 50, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionEquals, Value: 99}
-	if checkEquals(ctx, spec) {
-		t.Error("expected 50 != 99")
-	}
-}
-
-func TestCheckEquals_StringMatch(t *testing.T) {
-	ctx := makeCtx("hello", 0, 0, nil)
-	spec := &MatchSpec{Metric: MetricContent, Action: ActionEquals, Value: "hello"}
-	if !checkEquals(ctx, spec) {
-		t.Error("expected content match")
-	}
-}
-
-// --- checkNotEquals ---
-
-func TestCheckNotEquals_True(t *testing.T) {
-	ctx := makeCtx("", 50, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionNotEquals, Value: 99}
-	if !checkNotEquals(ctx, spec) {
-		t.Error("expected 50 != 99")
-	}
-}
-
-func TestCheckNotEquals_False(t *testing.T) {
-	ctx := makeCtx("", 50, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionNotEquals, Value: 50}
-	if checkNotEquals(ctx, spec) {
-		t.Error("expected 50 == 50 to make notEquals false")
-	}
-}
-
-// --- checkContains ---
-
-func TestCheckContains_SingleValue(t *testing.T) {
-	ctx := makeCtx("Always use gofmt for formatting", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionContains, Value: "gofmt"}
-	if !checkContains(ctx, spec) {
-		t.Error("expected content to contain 'gofmt'")
-	}
-}
-
-func TestCheckContains_CaseInsensitive(t *testing.T) {
-	ctx := makeCtx("Always use GOFMT for formatting", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionContains, Value: "gofmt"}
-	if !checkContains(ctx, spec) {
-		t.Error("expected case-insensitive match")
-	}
-}
-
-func TestCheckContains_NotFound(t *testing.T) {
-	ctx := makeCtx("Use eslint for linting", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionContains, Value: "gofmt"}
-	if checkContains(ctx, spec) {
-		t.Error("expected content to not contain 'gofmt'")
-	}
-}
-
-func TestCheckContains_Patterns_OneMatches(t *testing.T) {
-	ctx := makeCtx("Use eslint for linting", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionContains, Patterns: []string{"gofmt", "eslint", "prettier"}}
-	if !checkContains(ctx, spec) {
-		t.Error("expected one pattern to match")
-	}
-}
-
-func TestCheckContains_Patterns_NoneMatch(t *testing.T) {
-	ctx := makeCtx("Use standard library only", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionContains, Patterns: []string{"gofmt", "eslint", "prettier"}}
-	if checkContains(ctx, spec) {
-		t.Error("expected no patterns to match")
-	}
-}
-
-func TestCheckContains_NilValue(t *testing.T) {
-	ctx := makeCtx("some content", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionContains}
-	if checkContains(ctx, spec) {
-		t.Error("expected false for nil value and empty patterns")
-	}
-}
-
-func TestCheckContains_CustomMetric(t *testing.T) {
-	ctx := makeCtx("", 0, 0, map[string]any{"custom": "hello world"})
-	spec := &MatchSpec{Metric: MetricType("custom"), Action: ActionContains, Value: "hello"}
-	if !checkContains(ctx, spec) {
-		t.Error("expected custom metric to contain 'hello'")
-	}
-}
-
-// --- checkNotContains ---
-
-func TestCheckNotContains_True(t *testing.T) {
-	ctx := makeCtx("Use standard library only", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionNotContains, Value: "gofmt"}
-	if !checkNotContains(ctx, spec) {
-		t.Error("expected notContains to be true")
-	}
-}
-
-func TestCheckNotContains_False(t *testing.T) {
-	ctx := makeCtx("Always use gofmt", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionNotContains, Value: "gofmt"}
-	if checkNotContains(ctx, spec) {
-		t.Error("expected notContains to be false when content contains value")
-	}
-}
-
-func TestCheckNotContains_Patterns_AllAbsent(t *testing.T) {
-	ctx := makeCtx("Clean code", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionNotContains, Patterns: []string{"gofmt", "eslint"}}
-	if !checkNotContains(ctx, spec) {
-		t.Error("expected true when no patterns match")
-	}
-}
-
-func TestCheckNotContains_Patterns_OnePresent(t *testing.T) {
-	ctx := makeCtx("Use gofmt for formatting", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionNotContains, Patterns: []string{"gofmt", "eslint"}}
-	if checkNotContains(ctx, spec) {
-		t.Error("expected false when one pattern matches")
-	}
-}
-
-func TestCheckNotContains_NilValue(t *testing.T) {
-	ctx := makeCtx("some content", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionNotContains}
-	if !checkNotContains(ctx, spec) {
-		t.Error("expected true for nil value and empty patterns")
-	}
-}
-
-// --- checkRegexMatch ---
-
-func TestCheckRegexMatch_SingleValue(t *testing.T) {
-	ctx := makeCtx("Version 2.3.1 released", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexMatch, Value: `\d+\.\d+\.\d+`}
-	if !checkRegexMatch(ctx, spec) {
-		t.Error("expected regex to match version number")
-	}
-}
-
-func TestCheckRegexMatch_NoMatch(t *testing.T) {
-	ctx := makeCtx("No version here", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexMatch, Value: `\d+\.\d+\.\d+`}
-	if checkRegexMatch(ctx, spec) {
-		t.Error("expected regex to not match")
-	}
-}
-
-func TestCheckRegexMatch_Patterns(t *testing.T) {
-	ctx := makeCtx("disable all checks", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexMatch, Patterns: []string{`^version`, `disable.*checks`}}
-	if !checkRegexMatch(ctx, spec) {
-		t.Error("expected one regex pattern to match")
-	}
-}
-
-func TestCheckRegexMatch_Patterns_NoneMatch(t *testing.T) {
-	ctx := makeCtx("clean code", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexMatch, Patterns: []string{`^version`, `disable.*checks`}}
-	if checkRegexMatch(ctx, spec) {
-		t.Error("expected no regex patterns to match")
-	}
-}
-
-func TestCheckRegexMatch_InvalidRegex(t *testing.T) {
-	ctx := makeCtx("test", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexMatch, Value: `[invalid`}
-	if checkRegexMatch(ctx, spec) {
-		t.Error("expected false for invalid regex")
-	}
-}
-
-func TestCheckRegexMatch_InvalidPatternSkipped(t *testing.T) {
-	ctx := makeCtx("good match here", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexMatch, Patterns: []string{`[invalid`, `good match`}}
-	if !checkRegexMatch(ctx, spec) {
-		t.Error("expected valid pattern to match even with invalid pattern in list")
-	}
-}
-
-func TestCheckRegexMatch_NilValue(t *testing.T) {
-	ctx := makeCtx("some content", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexMatch}
-	if checkRegexMatch(ctx, spec) {
-		t.Error("expected false for nil value and empty patterns")
-	}
-}
-
-func TestCheckRegexMatch_CaseInsensitive(t *testing.T) {
-	ctx := makeCtx("ALWAYS USE GOFMT", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexMatch, Value: "always use gofmt"}
-	if !checkRegexMatch(ctx, spec) {
-		t.Error("expected case-insensitive match")
-	}
-}
-
-// --- checkRegexNotMatch ---
-
-func TestCheckRegexNotMatch_True(t *testing.T) {
-	ctx := makeCtx("clean code", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexNotMatch, Value: `\d+\.\d+`}
-	if !checkRegexNotMatch(ctx, spec) {
-		t.Error("expected true when regex does not match")
-	}
-}
-
-func TestCheckRegexNotMatch_False(t *testing.T) {
-	ctx := makeCtx("version 1.2", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionRegexNotMatch, Value: `\d+\.\d+`}
-	if checkRegexNotMatch(ctx, spec) {
-		t.Error("expected false when regex matches")
-	}
-}
-
-// --- checkIsPresent ---
-
-func TestCheckIsPresent_PatternFound(t *testing.T) {
-	ctx := makeCtx("# Build & Test\nmake build\nmake test", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionIsPresent, Patterns: []string{`make\s+test`, `npm\s+test`}}
-	if !checkIsPresent(ctx, spec) {
-		t.Error("expected pattern to be found")
-	}
-}
-
-func TestCheckIsPresent_PatternNotFound(t *testing.T) {
-	ctx := makeCtx("# Simple readme", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionIsPresent, Patterns: []string{`make\s+test`, `npm\s+test`}}
-	if checkIsPresent(ctx, spec) {
-		t.Error("expected pattern to not be found")
-	}
-}
-
-func TestCheckIsPresent_SingleValue(t *testing.T) {
-	ctx := makeCtx("use gofmt for formatting", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionIsPresent, Value: "gofmt"}
-	if !checkIsPresent(ctx, spec) {
-		t.Error("expected value to be present")
-	}
-}
-
-func TestCheckIsPresent_InvalidRegexFallsBackToLiteral(t *testing.T) {
-	ctx := makeCtx("some [bracket content", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionIsPresent, Patterns: []string{`[bracket`}}
-	if !checkIsPresent(ctx, spec) {
-		t.Error("expected literal fallback to find the string")
-	}
-}
-
-func TestCheckIsPresent_NilValue(t *testing.T) {
-	ctx := makeCtx("some content", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionIsPresent}
-	if checkIsPresent(ctx, spec) {
-		t.Error("expected false for nil value and empty patterns")
-	}
-}
-
-// --- checkNotPresent ---
-
-func TestCheckNotPresent_True(t *testing.T) {
-	ctx := makeCtx("clean code", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionNotPresent, Patterns: []string{`deprecated`}}
-	if !checkNotPresent(ctx, spec) {
-		t.Error("expected true when pattern not present")
-	}
-}
-
-func TestCheckNotPresent_False(t *testing.T) {
-	ctx := makeCtx("this is deprecated", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionNotPresent, Patterns: []string{`deprecated`}}
-	if checkNotPresent(ctx, spec) {
-		t.Error("expected false when pattern is present")
-	}
-}
-
-// --- checkAnd ---
-
-func TestCheckAnd_AllTrue(t *testing.T) {
-	ctx := makeCtx("use gofmt and eslint", 50, 10, nil)
-	spec := &MatchSpec{
-		Action: ActionAnd,
-		SubMatch: []MatchSpec{
-			{Action: ActionContains, Value: "gofmt"},
-			{Metric: MetricLineCount, Action: ActionLessThan, Value: 100},
-		},
-	}
-	if !checkAnd(ctx, spec) {
-		t.Error("expected AND to be true when all sub-specs pass")
-	}
-}
-
-func TestCheckAnd_OneFalse(t *testing.T) {
-	ctx := makeCtx("use gofmt", 200, 0, nil)
-	spec := &MatchSpec{
-		Action: ActionAnd,
-		SubMatch: []MatchSpec{
-			{Action: ActionContains, Value: "gofmt"},
-			{Metric: MetricLineCount, Action: ActionLessThan, Value: 100},
-		},
-	}
-	if checkAnd(ctx, spec) {
-		t.Error("expected AND to be false when one sub-spec fails")
-	}
-}
-
-func TestCheckAnd_EmptySubMatch(t *testing.T) {
-	ctx := makeCtx("", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionAnd, SubMatch: []MatchSpec{}}
-	if !checkAnd(ctx, spec) {
-		t.Error("expected AND with empty subMatch to return true")
-	}
-}
-
-// --- checkOr ---
-
-func TestCheckOr_OneTrue(t *testing.T) {
-	ctx := makeCtx("use gofmt", 200, 0, nil)
-	spec := &MatchSpec{
-		Action: ActionOr,
-		SubMatch: []MatchSpec{
-			{Action: ActionContains, Value: "gofmt"},
-			{Metric: MetricLineCount, Action: ActionLessThan, Value: 100},
-		},
-	}
-	if !checkOr(ctx, spec) {
-		t.Error("expected OR to be true when one sub-spec passes")
-	}
-}
-
-func TestCheckOr_AllFalse(t *testing.T) {
-	ctx := makeCtx("clean code", 200, 0, nil)
-	spec := &MatchSpec{
-		Action: ActionOr,
-		SubMatch: []MatchSpec{
-			{Action: ActionContains, Value: "gofmt"},
-			{Metric: MetricLineCount, Action: ActionLessThan, Value: 100},
-		},
-	}
-	if checkOr(ctx, spec) {
-		t.Error("expected OR to be false when all sub-specs fail")
-	}
-}
-
-func TestCheckOr_EmptySubMatch(t *testing.T) {
-	ctx := makeCtx("", 0, 0, nil)
-	spec := &MatchSpec{Action: ActionOr, SubMatch: []MatchSpec{}}
-	if checkOr(ctx, spec) {
-		t.Error("expected OR with empty subMatch to return false")
-	}
-}
-
-// --- EvaluateSpec ---
-
-func TestEvaluateSpec_Dispatches(t *testing.T) {
-	ctx := makeCtx("", 50, 0, nil)
-	spec := &MatchSpec{Metric: MetricLineCount, Action: ActionLessThan, Value: 100}
-	if !EvaluateSpec(ctx, spec) {
-		t.Error("expected EvaluateSpec to dispatch to checkLessThan")
-	}
-}
-
-func TestEvaluateSpec_UnknownAction(t *testing.T) {
-	ctx := makeCtx("", 0, 0, nil)
-	spec := &MatchSpec{Action: CheckAction("unknownAction")}
-	if EvaluateSpec(ctx, spec) {
-		t.Error("expected false for unknown action")
-	}
+	t.Run("unknown action returns false", func(t *testing.T) {
+		ctx := makeCtx("", 0, 0, nil)
+		spec := &MatchSpec{Action: CheckAction("unknownAction")}
+		if EvaluateSpec(ctx, spec) {
+			t.Error("expected false")
+		}
+	})
 }
