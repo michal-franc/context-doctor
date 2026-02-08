@@ -9,6 +9,21 @@ const (
 	SeverityInfo    Severity = "info"
 )
 
+// Dimension categorizes rules into scoring dimensions
+type Dimension string
+
+const (
+	DimensionCorrectness Dimension = "correctness"
+	DimensionStyle       Dimension = "style"
+	DimensionCompliance  Dimension = "compliance"
+	DimensionFreshness   Dimension = "freshness"
+)
+
+// AllDimensions returns dimensions in display order.
+func AllDimensions() []Dimension {
+	return []Dimension{DimensionCorrectness, DimensionStyle, DimensionCompliance, DimensionFreshness}
+}
+
 // CheckAction defines the type of check to perform
 type CheckAction string
 
@@ -51,6 +66,7 @@ type Rule struct {
 	Description  string    `yaml:"description" json:"description"`
 	Severity     Severity  `yaml:"severity" json:"severity"`
 	Category     string    `yaml:"category,omitempty" json:"category,omitempty"`
+	Dimension    Dimension `yaml:"dimension,omitempty" json:"dimension,omitempty"`
 	PrimaryOnly  bool      `yaml:"primaryOnly,omitempty" json:"primaryOnly,omitempty"`
 	MatchSpec    MatchSpec `yaml:"matchSpec" json:"matchSpec"`
 	ErrorMessage string    `yaml:"errorMessage" json:"errorMessage"`

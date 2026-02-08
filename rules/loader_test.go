@@ -35,6 +35,14 @@ func TestLoadBuiltinRules(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("all rules have dimension set", func(t *testing.T) {
+		for _, rule := range rules {
+			if rule.Dimension == "" {
+				t.Errorf("rule %s missing dimension", rule.Code)
+			}
+		}
+	})
 }
 
 // =============================================================================

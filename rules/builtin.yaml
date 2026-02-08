@@ -5,6 +5,7 @@ rules:
     description: File length is excessive
     severity: error
     category: length
+    dimension: correctness
     primaryOnly: true
     matchSpec:
       metric: lineCount
@@ -19,6 +20,7 @@ rules:
     description: File length is high
     severity: warning
     category: length
+    dimension: correctness
     primaryOnly: true
     matchSpec:
       metric: lineCount
@@ -32,6 +34,7 @@ rules:
     description: Too many instructions
     severity: error
     category: instructions
+    dimension: correctness
     primaryOnly: true
     matchSpec:
       metric: instructionCount
@@ -44,6 +47,7 @@ rules:
     description: High instruction count
     severity: warning
     category: instructions
+    dimension: correctness
     primaryOnly: true
     matchSpec:
       metric: instructionCount
@@ -57,6 +61,7 @@ rules:
     description: Indentation rules detected
     severity: warning
     category: linter-abuse
+    dimension: style
     matchSpec:
       action: regexMatch
       patterns:
@@ -68,6 +73,7 @@ rules:
     description: Line length rules detected
     severity: warning
     category: linter-abuse
+    dimension: style
     matchSpec:
       action: regexMatch
       patterns:
@@ -79,6 +85,7 @@ rules:
     description: Quote style rules detected
     severity: warning
     category: linter-abuse
+    dimension: style
     matchSpec:
       action: regexMatch
       patterns:
@@ -91,6 +98,7 @@ rules:
     description: Naming convention rules detected
     severity: warning
     category: linter-abuse
+    dimension: style
     matchSpec:
       action: regexMatch
       patterns:
@@ -105,6 +113,7 @@ rules:
     description: Semicolon rules detected
     severity: warning
     category: linter-abuse
+    dimension: style
     matchSpec:
       action: regexMatch
       patterns:
@@ -116,6 +125,7 @@ rules:
     description: Trailing character rules detected
     severity: warning
     category: linter-abuse
+    dimension: style
     matchSpec:
       action: regexMatch
       patterns:
@@ -128,6 +138,7 @@ rules:
     description: Auto-generated marker detected
     severity: warning
     category: auto-generated
+    dimension: compliance
     primaryOnly: true
     matchSpec:
       action: regexMatch
@@ -142,6 +153,7 @@ rules:
     description: Init command reference detected
     severity: info
     category: auto-generated
+    dimension: compliance
     primaryOnly: true
     matchSpec:
       action: regexMatch
@@ -156,6 +168,7 @@ rules:
     description: No progressive disclosure
     severity: info
     category: progressive-disclosure
+    dimension: style
     primaryOnly: true
     matchSpec:
       action: and
@@ -178,6 +191,7 @@ rules:
     description: Good progressive disclosure
     severity: info
     category: good-practice
+    dimension: style
     primaryOnly: true
     matchSpec:
       action: regexMatch
@@ -194,6 +208,7 @@ rules:
     description: Generic advice detected
     severity: warning
     category: generic-advice
+    dimension: style
     primaryOnly: true
     matchSpec:
       action: regexMatch
@@ -214,6 +229,7 @@ rules:
     description: Missing project context
     severity: info
     category: content-quality
+    dimension: compliance
     primaryOnly: true
     matchSpec:
       action: regexNotMatch
@@ -232,6 +248,7 @@ rules:
     description: Missing build commands
     severity: info
     category: content-quality
+    dimension: compliance
     primaryOnly: true
     matchSpec:
       action: regexNotMatch
@@ -253,6 +270,7 @@ rules:
     description: No negative instructions
     severity: info
     category: content-quality
+    dimension: compliance
     primaryOnly: true
     matchSpec:
       action: and
@@ -276,6 +294,7 @@ rules:
     description: No code examples
     severity: info
     category: content-quality
+    dimension: compliance
     primaryOnly: true
     matchSpec:
       action: and
@@ -296,6 +315,7 @@ rules:
     description: Good negative instructions
     severity: info
     category: good-practice
+    dimension: compliance
     primaryOnly: true
     matchSpec:
       action: regexMatch
@@ -312,6 +332,7 @@ rules:
     description: Good code examples
     severity: info
     category: good-practice
+    dimension: style
     primaryOnly: true
     matchSpec:
       action: regexMatch
@@ -325,6 +346,7 @@ rules:
     description: Referenced documentation file not found
     severity: error
     category: referenced-docs
+    dimension: correctness
     primaryOnly: true
     matchSpec:
       metric: broken_references_count
@@ -337,6 +359,7 @@ rules:
     description: Referenced documentation file is stale
     severity: warning
     category: referenced-docs
+    dimension: correctness
     primaryOnly: true
     matchSpec:
       metric: stale_references_count
@@ -349,6 +372,7 @@ rules:
     description: Total instruction count across all context files is too high
     severity: warning
     category: referenced-docs
+    dimension: compliance
     primaryOnly: true
     matchSpec:
       metric: total_instruction_count
@@ -362,6 +386,7 @@ rules:
     description: Duplicated instructions across context files
     severity: warning
     category: cross-file-consistency
+    dimension: compliance
     primaryOnly: true
     matchSpec:
       metric: duplicate_instruction_count

@@ -187,3 +187,49 @@ func TestBuildFilterOpts(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// renderProgressBar
+// =============================================================================
+
+func TestRenderProgressBar(t *testing.T) {
+	tests := []struct {
+		name  string
+		score int
+		width int
+		want  string
+	}{
+		{"score 0", 0, 10, "[░░░░░░░░░░]"},
+		{"score 50", 50, 10, "[█████░░░░░]"},
+		{"score 100", 100, 10, "[██████████]"},
+		{"score 100 width 20", 100, 20, "[████████████████████]"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := renderProgressBar(tc.score, tc.width); got != tc.want {
+				t.Errorf("renderProgressBar(%d, %d) = %q, want %q", tc.score, tc.width, got, tc.want)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// formatDimensionCompact
+// =============================================================================
+
+func TestFormatDimensionCompact(t *testing.T) {
+	t.Run("nil returns empty", func(t *testing.T) {
+		if got := formatDimensionCompact(nil); got != "" {
+			t.Errorf("got %q, want empty", got)
+		}
+	})
+
+	t.Run("formats all dimensions", func(t *testing.T) {
+		ds := rules.CalculateDimensionScores(nil, 90)
+		got := formatDimensionCompact(ds)
+		want := "[C:100 S:100 M:100 F:90]"
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+}
