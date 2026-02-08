@@ -224,15 +224,17 @@ func findCLAUDEFilesWalk(dir string) []string {
 
 // fileAnalysis holds all analysis results for a single CLAUDE.md file
 type fileAnalysis struct {
-	FilePath   string
-	Ctx        *rules.AnalysisContext
-	Results    []rules.RuleResult
-	Refs       []rules.RefInfo
-	RefResults map[string][]rules.RuleResult
-	AggMetrics rules.AggregateMetrics
-	Score      int
-	Errors     int
-	Warnings   int
+	FilePath        string
+	Ctx             *rules.AnalysisContext
+	Results         []rules.RuleResult
+	Refs            []rules.RefInfo
+	RefResults      map[string][]rules.RuleResult
+	AggMetrics      rules.AggregateMetrics
+	DimensionScores *rules.DimensionScores
+	FreshnessDays   int
+	Score           int
+	Errors          int
+	Warnings        int
 }
 
 func buildAnalysis(filePath string) (*fileAnalysis, error) {
@@ -274,7 +276,9 @@ func buildAnalysis(filePath string) (*fileAnalysis, error) {
 		}
 	}
 
-	score := calculateScore(ctx, results)
+	freshnessScore, freshnessDays := rules.CalculateFreshnessScore(filePath)
+	dimScores := rules.CalculateDimensionScores(results, freshnessScore)
+	score := dimScores.Overall
 
 	errors := 0
 	warnings := 0
@@ -291,15 +295,17 @@ func buildAnalysis(filePath string) (*fileAnalysis, error) {
 	}
 
 	return &fileAnalysis{
-		FilePath:   filePath,
-		Ctx:        ctx,
-		Results:    results,
-		Refs:       refs,
-		RefResults: refResults,
-		AggMetrics: aggMetrics,
-		Score:      score,
-		Errors:     errors,
-		Warnings:   warnings,
+		FilePath:        filePath,
+		Ctx:             ctx,
+		Results:         results,
+		Refs:            refs,
+		RefResults:      refResults,
+		AggMetrics:      aggMetrics,
+		DimensionScores: dimScores,
+		FreshnessDays:   freshnessDays,
+		Score:           score,
+		Errors:          errors,
+		Warnings:        warnings,
 	}, nil
 }
 
@@ -311,7 +317,7 @@ func analyzeFile(filePath string) {
 	}
 
 	filterOpts := buildFilterOpts()
-	printReport(fa.Ctx, fa.Results, filterOpts, fa.Refs, fa.RefResults, fa.AggMetrics)
+	printReport(fa, filterOpts)
 }
 
 func printRepoReport(dir string, files []string) {
@@ -378,8 +384,9 @@ func printRepoReport(dir string, files []string) {
 		}
 
 		fmt.Printf("  %s %s\n", icon, relPath)
-		fmt.Printf("      Score: %d/100  Lines: %d  Instructions: ~%d  Errors: %d  Warnings: %d\n",
-			fa.Score, fa.Ctx.LineCount, fa.Ctx.InstructionCount, fa.Errors, fa.Warnings)
+		dimCompact := formatDimensionCompact(fa.DimensionScores)
+		fmt.Printf("      Score: %d/100 %s  Lines: %d  Instructions: ~%d  Errors: %d  Warnings: %d\n",
+			fa.Score, dimCompact, fa.Ctx.LineCount, fa.Ctx.InstructionCount, fa.Errors, fa.Warnings)
 
 		// Show referenced docs inline (full tree)
 		if len(fa.Refs) > 0 {
@@ -473,7 +480,13 @@ func buildFilterOpts() rules.FilterOptions {
 	return filterOpts
 }
 
-func printReport(ctx *rules.AnalysisContext, results []rules.RuleResult, filterOpts rules.FilterOptions, refs []rules.RefInfo, refResults map[string][]rules.RuleResult, aggMetrics rules.AggregateMetrics) {
+func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
+	ctx := fa.Ctx
+	results := fa.Results
+	refs := fa.Refs
+	refResults := fa.RefResults
+	aggMetrics := fa.AggMetrics
+
 	fmt.Println("=" + strings.Repeat("=", 59))
 	fmt.Println("  CLAUDE.md Analysis Report")
 	fmt.Println("=" + strings.Repeat("=", 59))
@@ -645,17 +658,14 @@ func printReport(ctx *rules.AnalysisContext, results []rules.RuleResult, filterO
 		printCrossFileAnalysis(aggMetrics)
 	}
 
-	// Calculate and print score
-	if showScore {
-		score := calculateScore(ctx, results)
-		fmt.Println("OVERALL SCORE")
-		fmt.Println(strings.Repeat("-", 40))
-		fmt.Printf("  %d/100\n", score)
+	// Print dimension scores and overall
+	if showScore && fa.DimensionScores != nil {
+		printDimensionScores(fa.DimensionScores, fa.FreshnessDays)
 
-		if !hasProblems && score == 100 {
-			fmt.Println("\n  ✓ Excellent! Your CLAUDE.md follows best practices.")
+		if !hasProblems && fa.DimensionScores.Overall == 100 {
+			fmt.Println("  ✓ Excellent! Your CLAUDE.md follows best practices.")
+			fmt.Println()
 		}
-		fmt.Println()
 	}
 }
 
@@ -749,6 +759,60 @@ func printCrossFileAnalysis(agg rules.AggregateMetrics) {
 	fmt.Println()
 }
 
+func printDimensionScores(ds *rules.DimensionScores, freshnessDays int) {
+	fmt.Println("DIMENSION SCORES")
+	fmt.Println(strings.Repeat("-", 40))
+	dimLabels := map[rules.Dimension]string{
+		rules.DimensionCorrectness: "Correctness",
+		rules.DimensionStyle:       "Style",
+		rules.DimensionCompliance:  "Compliance",
+		rules.DimensionFreshness:   "Freshness",
+	}
+	for _, dim := range rules.AllDimensions() {
+		entry := ds.Scores[dim]
+		if entry == nil {
+			continue
+		}
+		label := dimLabels[dim]
+		bar := renderProgressBar(entry.Score, 20)
+		extra := ""
+		if dim == rules.DimensionFreshness && freshnessDays >= 0 {
+			extra = fmt.Sprintf("  (%d days ago)", freshnessDays)
+		}
+		fmt.Printf("  %-13s %s %d/100%s\n", label, bar, entry.Score, extra)
+	}
+	fmt.Println()
+
+	fmt.Println("OVERALL SCORE")
+	fmt.Println(strings.Repeat("-", 40))
+	fmt.Printf("  %s %d/100\n", renderProgressBar(ds.Overall, 20), ds.Overall)
+	fmt.Println()
+}
+
+func renderProgressBar(score, width int) string {
+	filled := score * width / 100
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > width {
+		filled = width
+	}
+	empty := width - filled
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
+}
+
+func formatDimensionCompact(ds *rules.DimensionScores) string {
+	if ds == nil {
+		return ""
+	}
+	return fmt.Sprintf("[C:%d S:%d M:%d F:%d]",
+		ds.Scores[rules.DimensionCorrectness].Score,
+		ds.Scores[rules.DimensionStyle].Score,
+		ds.Scores[rules.DimensionCompliance].Score,
+		ds.Scores[rules.DimensionFreshness].Score,
+	)
+}
+
 func printRepoRefTree(refs []rules.RefInfo, indent string) {
 	for _, ref := range refs {
 		if !ref.Exists {
@@ -784,7 +848,7 @@ func getSeverityIcon(severity rules.Severity) string {
 	}
 }
 
-func calculateScore(ctx *rules.AnalysisContext, results []rules.RuleResult) int {
+func calculateScore(_ *rules.AnalysisContext, results []rules.RuleResult) int {
 	score := 100
 
 	for _, r := range results {
