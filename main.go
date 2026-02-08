@@ -188,23 +188,9 @@ func findOrphanMDFiles(dir string, analyses []*fileAnalysis) []string {
 		}
 	}
 
-	// Common non-context files to skip
-	skip := map[string]bool{
-		"README.md": true, "readme.md": true,
-		"CHANGELOG.md": true, "changelog.md": true,
-		"LICENSE.md": true, "license.md": true,
-		"CONTRIBUTING.md": true, "contributing.md": true,
-		"CODE_OF_CONDUCT.md": true,
-		"SECURITY.md": true,
-	}
-
 	var orphans []string
 	for _, md := range allMD {
 		if referenced[md] {
-			continue
-		}
-		base := filepath.Base(md)
-		if skip[base] {
 			continue
 		}
 		orphans = append(orphans, md)
@@ -281,9 +267,9 @@ func buildAnalysis(filePath string) (*fileAnalysis, error) {
 	var refResults map[string][]rules.RuleResult
 	if len(refs) > 0 {
 		refResults = make(map[string][]rules.RuleResult)
-		for _, ref := range refs {
+		for _, ref := range rules.FlattenRefs(refs) {
 			if ref.Exists && ref.Context != nil {
-				refResults[ref.Path] = engine.Evaluate(ref.Context)
+				refResults[ref.Path] = engine.EvaluateSecondary(ref.Context)
 			}
 		}
 	}
@@ -395,17 +381,9 @@ func printRepoReport(dir string, files []string) {
 		fmt.Printf("      Score: %d/100  Lines: %d  Instructions: ~%d  Errors: %d  Warnings: %d\n",
 			fa.Score, fa.Ctx.LineCount, fa.Ctx.InstructionCount, fa.Errors, fa.Warnings)
 
-		// Show referenced docs inline
+		// Show referenced docs inline (full tree)
 		if len(fa.Refs) > 0 {
-			for _, ref := range fa.Refs {
-				if !ref.Exists {
-					fmt.Printf("      ✗ ref: %s (not found!)\n", ref.Path)
-				} else if ref.IsStale {
-					fmt.Printf("      ⚠ ref: %s (stale — %d days)\n", ref.Path, ref.DaysSinceUpdate)
-				} else {
-					fmt.Printf("      ✓ ref: %s (%d days ago)\n", ref.Path, ref.DaysSinceUpdate)
-				}
-			}
+			printRepoRefTree(fa.Refs, "      ")
 		}
 
 		totalScore += fa.Score
@@ -684,17 +662,23 @@ func printReport(ctx *rules.AnalysisContext, results []rules.RuleResult, filterO
 func printReferencedDocs(refs []rules.RefInfo) {
 	fmt.Println("REFERENCED DOCS")
 	fmt.Println(strings.Repeat("-", 40))
+	printRefTree(refs, "  ")
+	fmt.Println()
+}
 
+func printRefTree(refs []rules.RefInfo, indent string) {
 	for _, ref := range refs {
 		if !ref.Exists {
-			fmt.Printf("  ✗ %s (file not found!)\n", ref.Path)
+			fmt.Printf("%s✗ %s (file not found!)\n", indent, ref.Path)
 		} else if ref.IsStale {
-			fmt.Printf("  ⚠ %s (last updated %d days ago — stale)\n", ref.Path, ref.DaysSinceUpdate)
+			fmt.Printf("%s⚠ %s (last updated %d days ago — stale)\n", indent, ref.Path, ref.DaysSinceUpdate)
 		} else {
-			fmt.Printf("  ✓ %s (last updated %d days ago)\n", ref.Path, ref.DaysSinceUpdate)
+			fmt.Printf("%s✓ %s (last updated %d days ago)\n", indent, ref.Path, ref.DaysSinceUpdate)
+		}
+		if len(ref.Children) > 0 {
+			printRefTree(ref.Children, indent+"  ")
 		}
 	}
-	fmt.Println()
 }
 
 func printReferencedDocIssues(refs []rules.RefInfo, refResults map[string][]rules.RuleResult, filterOpts rules.FilterOptions) {
@@ -702,7 +686,7 @@ func printReferencedDocIssues(refs []rules.RefInfo, refResults map[string][]rule
 		return
 	}
 
-	for _, ref := range refs {
+	for _, ref := range rules.FlattenRefs(refs) {
 		if !ref.Exists {
 			continue
 		}
@@ -711,16 +695,9 @@ func printReferencedDocIssues(refs []rules.RefInfo, refResults map[string][]rule
 			continue
 		}
 
-		// Collect issues for this ref
+		// Collect issues for this ref (primaryOnly rules already excluded by EvaluateSecondary)
 		var issues []rules.RuleResult
 		for _, r := range results {
-			if r.Rule.Category == "good-practice" {
-				continue
-			}
-			// Skip referenced-docs and cross-file-consistency rules for sub-files
-			if r.Rule.Category == "referenced-docs" || r.Rule.Category == "cross-file-consistency" {
-				continue
-			}
 			if r.Passed {
 				issues = append(issues, r)
 			}
@@ -770,6 +747,21 @@ func printCrossFileAnalysis(agg rules.AggregateMetrics) {
 		}
 	}
 	fmt.Println()
+}
+
+func printRepoRefTree(refs []rules.RefInfo, indent string) {
+	for _, ref := range refs {
+		if !ref.Exists {
+			fmt.Printf("%s✗ ref: %s (not found!)\n", indent, ref.Path)
+		} else if ref.IsStale {
+			fmt.Printf("%s⚠ ref: %s (stale — %d days)\n", indent, ref.Path, ref.DaysSinceUpdate)
+		} else {
+			fmt.Printf("%s✓ ref: %s (%d days ago)\n", indent, ref.Path, ref.DaysSinceUpdate)
+		}
+		if len(ref.Children) > 0 {
+			printRepoRefTree(ref.Children, indent+"  ")
+		}
+	}
 }
 
 func truncate(s string, maxLen int) string {

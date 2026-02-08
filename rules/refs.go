@@ -17,35 +17,53 @@ type RefInfo struct {
 	DaysSinceUpdate int              // days since last update
 	IsStale         bool             // exceeds stale threshold
 	Context         *AnalysisContext // analysis context if file exists
+	ReferencedBy    string           // which file references this one
+	Depth           int              // depth in the reference tree (0 = direct from CLAUDE.md)
+	Children        []RefInfo        // files referenced by this file
 }
 
-// ResolveReferences takes progressive disclosure refs from the context and resolves them
+// ResolveReferences recursively resolves progressive disclosure refs from the context.
+// It follows references in referenced files, detecting circular references.
 func ResolveReferences(ctx *AnalysisContext, baseDir string, staleThresholdDays int) []RefInfo {
+	seen := make(map[string]bool)
+	return resolveRefsRecursive(ctx, baseDir, staleThresholdDays, ctx.FilePath, 0, seen)
+}
+
+func resolveRefsRecursive(ctx *AnalysisContext, baseDir string, staleThresholdDays int, referencedBy string, depth int, seen map[string]bool) []RefInfo {
 	rawRefs, ok := ctx.Metrics["progressiveDisclosureRefs"].([]string)
 	if !ok || len(rawRefs) == 0 {
 		return nil
 	}
 
-	// Deduplicate refs
-	seen := make(map[string]bool)
 	var refs []RefInfo
 
 	for _, ref := range rawRefs {
 		ref = strings.TrimSpace(ref)
-		if ref == "" || seen[ref] {
+		if ref == "" {
 			continue
 		}
-		seen[ref] = true
 
 		resolved := filepath.Join(baseDir, ref)
+		absResolved, err := filepath.Abs(resolved)
+		if err != nil {
+			absResolved = resolved
+		}
+
+		// Cycle detection
+		if seen[absResolved] {
+			continue
+		}
+		seen[absResolved] = true
+
 		info := RefInfo{
 			Path:         ref,
 			ResolvedPath: resolved,
+			ReferencedBy: referencedBy,
+			Depth:        depth,
 		}
 
 		stat, err := os.Stat(resolved)
 		if err != nil {
-			// File doesn't exist
 			refs = append(refs, info)
 			continue
 		}
@@ -65,12 +83,28 @@ func ResolveReferences(ctx *AnalysisContext, baseDir string, staleThresholdDays 
 		content, err := os.ReadFile(resolved)
 		if err == nil {
 			info.Context = BuildContext(resolved, string(content))
+
+			// Recurse into this file's references
+			childBaseDir := filepath.Dir(resolved)
+			info.Children = resolveRefsRecursive(info.Context, childBaseDir, staleThresholdDays, ref, depth+1, seen)
 		}
 
 		refs = append(refs, info)
 	}
 
 	return refs
+}
+
+// FlattenRefs returns all refs in a flat list (depth-first), including children
+func FlattenRefs(refs []RefInfo) []RefInfo {
+	var flat []RefInfo
+	for _, ref := range refs {
+		flat = append(flat, ref)
+		if len(ref.Children) > 0 {
+			flat = append(flat, FlattenRefs(ref.Children)...)
+		}
+	}
+	return flat
 }
 
 // getGitLastModified tries to get the last commit date for a file using git
@@ -97,11 +131,13 @@ func getGitLastModified(filePath string) time.Time {
 
 // EnrichContextWithRefMetrics adds reference-related metrics to the context
 func EnrichContextWithRefMetrics(ctx *AnalysisContext, refs []RefInfo) {
+	allRefs := FlattenRefs(refs)
+
 	brokenCount := 0
 	staleCount := 0
 	var refFiles []string
 
-	for _, ref := range refs {
+	for _, ref := range allRefs {
 		refFiles = append(refFiles, ref.Path)
 		if !ref.Exists {
 			brokenCount++

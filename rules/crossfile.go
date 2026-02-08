@@ -20,6 +20,8 @@ type AggregateMetrics struct {
 
 // FindDuplicateInstructions finds instructions that appear in multiple files
 func FindDuplicateInstructions(primary *AnalysisContext, refs []RefInfo) []DuplicateInfo {
+	allRefs := FlattenRefs(refs)
+
 	// Map from normalized instruction -> list of files containing it
 	instructionFiles := make(map[string][]string)
 
@@ -32,8 +34,8 @@ func FindDuplicateInstructions(primary *AnalysisContext, refs []RefInfo) []Dupli
 		}
 	}
 
-	// Extract instructions from each referenced file
-	for _, ref := range refs {
+	// Extract instructions from each referenced file (full tree)
+	for _, ref := range allRefs {
 		if !ref.Exists || ref.Context == nil {
 			continue
 		}
@@ -72,15 +74,17 @@ func FindDuplicateInstructions(primary *AnalysisContext, refs []RefInfo) []Dupli
 	return duplicates
 }
 
-// ComputeAggregateMetrics computes combined metrics across primary + referenced files
+// ComputeAggregateMetrics computes combined metrics across primary + all referenced files (full tree)
 func ComputeAggregateMetrics(primary *AnalysisContext, refs []RefInfo) AggregateMetrics {
+	allRefs := FlattenRefs(refs)
+
 	agg := AggregateMetrics{
 		TotalInstructionCount: primary.InstructionCount,
 		TotalLineCount:        primary.LineCount,
 		FileCount:             1,
 	}
 
-	for _, ref := range refs {
+	for _, ref := range allRefs {
 		if !ref.Exists || ref.Context == nil {
 			continue
 		}

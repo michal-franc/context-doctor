@@ -51,6 +51,7 @@ type Rule struct {
 	Description  string    `yaml:"description" json:"description"`
 	Severity     Severity  `yaml:"severity" json:"severity"`
 	Category     string    `yaml:"category,omitempty" json:"category,omitempty"`
+	PrimaryOnly  bool      `yaml:"primaryOnly,omitempty" json:"primaryOnly,omitempty"`
 	MatchSpec    MatchSpec `yaml:"matchSpec" json:"matchSpec"`
 	ErrorMessage string    `yaml:"errorMessage" json:"errorMessage"`
 	Suggestion   string    `yaml:"suggestion,omitempty" json:"suggestion,omitempty"`

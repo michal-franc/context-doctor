@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="context-doctor logo" width="200">
+</p>
+
 # context-doctor
 
 A CLI tool that analyzes CLAUDE.md files and provides feedback on best practices for Claude Code context management.
@@ -232,11 +236,18 @@ context-doctor -severities error ./CLAUDE.md
 
 When you pass a directory, context-doctor finds all `CLAUDE.md` files (respecting `.gitignore`) and produces a consolidated repo report:
 
-- Detects multiple `CLAUDE.md` files (a repo should have exactly one)
+- Enforces a single `CLAUDE.md` per repo (multiple files = error with -30 score penalty)
 - Validates referenced docs exist and aren't stale
+- Recursively follows references (docs referencing other docs), with cycle detection
 - Finds orphan `.md` files not referenced by any `CLAUDE.md`
-- Detects duplicated instructions across files
+- Detects duplicated instructions across the full file tree
 - Shows aggregate metrics and per-file scores
+
+### Primary vs referenced docs
+
+context-doctor treats your CLAUDE.md and its referenced docs differently. CLAUDE.md-specific rules (line count limits, instruction count, missing project context, etc.) only run against the primary CLAUDE.md — not against referenced docs like README.md or docs/*.md. Referenced docs serve humans too, so only universal rules (like linter abuse detection) apply to them.
+
+See [RULES.md](RULES.md) for which rules are primary-only.
 
 ### Using with Claude Code
 
@@ -281,9 +292,9 @@ Would you like me to help rewrite your CLAUDE.md?
 - **Linter abuse** - Rules that should be handled by formatters/linters
 - **Auto-generated content** - Detects `/init` generated files
 - **Progressive disclosure** - Encourages linking to separate docs
-- **Referenced docs** - Validates referenced files exist and aren't stale
-- **Cross-file consistency** - Detects duplicated instructions across files
-- **Repo-level checks** - Enforces single CLAUDE.md, finds orphan docs
+- **Referenced docs** - Recursively validates referenced files exist and aren't stale
+- **Cross-file consistency** - Detects duplicated instructions across the full reference tree
+- **Repo-level checks** - Enforces single CLAUDE.md, finds orphan `.md` files
 
 See [RULES.md](RULES.md) for the complete list of rules.
 

@@ -155,6 +155,118 @@ func TestEnrichContextWithRefMetrics(t *testing.T) {
 	}
 }
 
+func TestResolveReferences_Recursive(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create docs/a.md which references b.md (relative to its own dir)
+	docsDir := filepath.Join(tmpDir, "docs")
+	if err := os.MkdirAll(docsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// "see b.md" will be extracted as a ref, resolved relative to docs/
+	if err := os.WriteFile(filepath.Join(docsDir, "a.md"), []byte("# A\n\nFor details see b.md\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(docsDir, "b.md"), []byte("# B\n\nLeaf node content.\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := &AnalysisContext{
+		FilePath: filepath.Join(tmpDir, "CLAUDE.md"),
+		Metrics: map[string]any{
+			"progressiveDisclosureRefs": []string{"docs/a.md"},
+		},
+	}
+
+	refs := ResolveReferences(ctx, tmpDir, 90)
+	if len(refs) != 1 {
+		t.Fatalf("expected 1 top-level ref, got %d", len(refs))
+	}
+
+	a := refs[0]
+	if !a.Exists {
+		t.Fatal("expected docs/a.md to exist")
+	}
+	if len(a.Children) != 1 {
+		t.Fatalf("expected docs/a.md to have 1 child, got %d", len(a.Children))
+	}
+
+	b := a.Children[0]
+	if !b.Exists {
+		t.Error("expected b.md to exist")
+	}
+	if b.Depth != 1 {
+		t.Errorf("expected depth 1, got %d", b.Depth)
+	}
+	if b.ReferencedBy != "docs/a.md" {
+		t.Errorf("expected ReferencedBy='docs/a.md', got %q", b.ReferencedBy)
+	}
+
+	// FlattenRefs should return both
+	flat := FlattenRefs(refs)
+	if len(flat) != 2 {
+		t.Errorf("expected 2 flattened refs, got %d", len(flat))
+	}
+}
+
+func TestResolveReferences_CycleDetection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// a.md references b.md, b.md references a.md — cycle
+	if err := os.WriteFile(filepath.Join(tmpDir, "a.md"), []byte("# A\n\nSee b.md for more.\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "b.md"), []byte("# B\n\nSee a.md for more.\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := &AnalysisContext{
+		FilePath: filepath.Join(tmpDir, "CLAUDE.md"),
+		Metrics: map[string]any{
+			"progressiveDisclosureRefs": []string{"a.md"},
+		},
+	}
+
+	refs := ResolveReferences(ctx, tmpDir, 90)
+
+	// Should resolve a.md -> b.md but NOT b.md -> a.md again
+	flat := FlattenRefs(refs)
+	if len(flat) != 2 {
+		t.Errorf("expected 2 refs (cycle broken), got %d", len(flat))
+	}
+
+	// Verify no infinite recursion happened (test completing is proof enough)
+}
+
+func TestFlattenRefs(t *testing.T) {
+	refs := []RefInfo{
+		{
+			Path: "a.md",
+			Children: []RefInfo{
+				{
+					Path: "b.md",
+					Children: []RefInfo{
+						{Path: "c.md"},
+					},
+				},
+			},
+		},
+		{Path: "d.md"},
+	}
+
+	flat := FlattenRefs(refs)
+	if len(flat) != 4 {
+		t.Errorf("expected 4 flattened refs, got %d", len(flat))
+	}
+
+	expected := []string{"a.md", "b.md", "c.md", "d.md"}
+	for i, ref := range flat {
+		if ref.Path != expected[i] {
+			t.Errorf("flat[%d] = %q, want %q", i, ref.Path, expected[i])
+		}
+	}
+}
+
 func TestEnrichContextWithRefMetrics_Empty(t *testing.T) {
 	ctx := &AnalysisContext{
 		Metrics: make(map[string]any),

@@ -30,6 +30,21 @@ func (e *Engine) Evaluate(ctx *AnalysisContext) []RuleResult {
 	return results
 }
 
+// EvaluateSecondary runs only non-primaryOnly rules (for referenced docs)
+func (e *Engine) EvaluateSecondary(ctx *AnalysisContext) []RuleResult {
+	var results []RuleResult
+
+	for _, rule := range e.Rules {
+		if rule.PrimaryOnly {
+			continue
+		}
+		result := e.evaluateRule(ctx, rule)
+		results = append(results, result)
+	}
+
+	return results
+}
+
 func (e *Engine) evaluateRule(ctx *AnalysisContext, rule Rule) RuleResult {
 	passed := EvaluateSpec(ctx, &rule.MatchSpec)
 
