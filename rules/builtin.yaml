@@ -5,6 +5,7 @@ rules:
     description: File length is excessive
     severity: error
     category: length
+    primaryOnly: true
     matchSpec:
       metric: lineCount
       action: greaterThan
@@ -18,6 +19,7 @@ rules:
     description: File length is high
     severity: warning
     category: length
+    primaryOnly: true
     matchSpec:
       metric: lineCount
       action: greaterThan
@@ -30,6 +32,7 @@ rules:
     description: Too many instructions
     severity: error
     category: instructions
+    primaryOnly: true
     matchSpec:
       metric: instructionCount
       action: greaterThan
@@ -41,6 +44,7 @@ rules:
     description: High instruction count
     severity: warning
     category: instructions
+    primaryOnly: true
     matchSpec:
       metric: instructionCount
       action: greaterThan
@@ -124,6 +128,7 @@ rules:
     description: Auto-generated marker detected
     severity: warning
     category: auto-generated
+    primaryOnly: true
     matchSpec:
       action: regexMatch
       patterns:
@@ -137,6 +142,7 @@ rules:
     description: Init command reference detected
     severity: info
     category: auto-generated
+    primaryOnly: true
     matchSpec:
       action: regexMatch
       patterns:
@@ -150,6 +156,7 @@ rules:
     description: No progressive disclosure
     severity: info
     category: progressive-disclosure
+    primaryOnly: true
     matchSpec:
       action: and
       subMatch:
@@ -171,6 +178,7 @@ rules:
     description: Good progressive disclosure
     severity: info
     category: good-practice
+    primaryOnly: true
     matchSpec:
       action: regexMatch
       patterns:
@@ -186,6 +194,7 @@ rules:
     description: Generic advice detected
     severity: warning
     category: generic-advice
+    primaryOnly: true
     matchSpec:
       action: regexMatch
       patterns:
@@ -205,6 +214,7 @@ rules:
     description: Missing project context
     severity: info
     category: content-quality
+    primaryOnly: true
     matchSpec:
       action: regexNotMatch
       patterns:
@@ -222,6 +232,7 @@ rules:
     description: Missing build commands
     severity: info
     category: content-quality
+    primaryOnly: true
     matchSpec:
       action: regexNotMatch
       patterns:
@@ -242,6 +253,7 @@ rules:
     description: No negative instructions
     severity: info
     category: content-quality
+    primaryOnly: true
     matchSpec:
       action: and
       subMatch:
@@ -264,6 +276,7 @@ rules:
     description: No code examples
     severity: info
     category: content-quality
+    primaryOnly: true
     matchSpec:
       action: and
       subMatch:
@@ -283,6 +296,7 @@ rules:
     description: Good negative instructions
     severity: info
     category: good-practice
+    primaryOnly: true
     matchSpec:
       action: regexMatch
       patterns:
@@ -298,9 +312,60 @@ rules:
     description: Good code examples
     severity: info
     category: good-practice
+    primaryOnly: true
     matchSpec:
       action: regexMatch
       patterns:
         - "```"
     errorMessage: "Code examples detected"
     suggestion: ""
+
+  # Referenced documentation checks
+  - code: CD031
+    description: Referenced documentation file not found
+    severity: error
+    category: referenced-docs
+    primaryOnly: true
+    matchSpec:
+      metric: broken_references_count
+      action: greaterThan
+      value: 0
+    errorMessage: "One or more referenced documentation files do not exist"
+    suggestion: "Remove broken references or create the missing files"
+
+  - code: CD032
+    description: Referenced documentation file is stale
+    severity: warning
+    category: referenced-docs
+    primaryOnly: true
+    matchSpec:
+      metric: stale_references_count
+      action: greaterThan
+      value: 0
+    errorMessage: "Referenced docs haven't been updated in a long time"
+    suggestion: "Review and update stale documentation or remove outdated references"
+
+  - code: CD033
+    description: Total instruction count across all context files is too high
+    severity: warning
+    category: referenced-docs
+    primaryOnly: true
+    matchSpec:
+      metric: total_instruction_count
+      action: greaterThan
+      value: 200
+    errorMessage: "Combined instruction count across all context files exceeds 200"
+    suggestion: "Trim instructions — total volume across all files affects LLM performance"
+
+  # Cross-file consistency checks
+  - code: CD034
+    description: Duplicated instructions across context files
+    severity: warning
+    category: cross-file-consistency
+    primaryOnly: true
+    matchSpec:
+      metric: duplicate_instruction_count
+      action: greaterThan
+      value: 0
+    errorMessage: "Same instructions found in multiple context files"
+    suggestion: "Keep each instruction in one place to avoid confusion and wasted context"

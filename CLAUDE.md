@@ -23,5 +23,9 @@ make clean      # Remove build artifacts
 
 ### Project Structure
 
-- `main.go` - Entry point and CLI handling
+- `main.go` - Entry point, CLI handling, report rendering
 - `rules/` - Rule engine and built-in rules
+
+### Key Docs
+
+- `RULES.md` - Complete reference for all built-in rules and custom rule authoring

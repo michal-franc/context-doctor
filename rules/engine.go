@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// imperativeVerbPattern matches lines that look like instructions
+var imperativeVerbPattern = regexp.MustCompile(`(?i)^[-*]?\s*(always|never|do not|don't|must|should|ensure|make sure|use|avoid|prefer|run|execute|check|verify|include|exclude|add|remove|create|delete|update|follow|implement)`)
+
 // Engine evaluates rules against analysis context
 type Engine struct {
 	Rules []Rule
@@ -20,6 +23,21 @@ func (e *Engine) Evaluate(ctx *AnalysisContext) []RuleResult {
 	var results []RuleResult
 
 	for _, rule := range e.Rules {
+		result := e.evaluateRule(ctx, rule)
+		results = append(results, result)
+	}
+
+	return results
+}
+
+// EvaluateSecondary runs only non-primaryOnly rules (for referenced docs)
+func (e *Engine) EvaluateSecondary(ctx *AnalysisContext) []RuleResult {
+	var results []RuleResult
+
+	for _, rule := range e.Rules {
+		if rule.PrimaryOnly {
+			continue
+		}
 		result := e.evaluateRule(ctx, rule)
 		results = append(results, result)
 	}
@@ -65,7 +83,7 @@ func BuildContext(filePath string, content string) *AnalysisContext {
 		Content:          content,
 		Lines:            lines,
 		LineCount:        len(lines),
-		InstructionCount: countInstructions(lines),
+		InstructionCount: CountInstructions(lines),
 		Metrics:          make(map[string]any),
 	}
 
@@ -76,12 +94,12 @@ func BuildContext(filePath string, content string) *AnalysisContext {
 	return ctx
 }
 
-// countInstructions estimates the number of instructions in the content
-func countInstructions(lines []string) int {
-	count := 0
+// listItemPattern matches list items (bullets and numbered)
+var listItemPattern = regexp.MustCompile(`^[-*]|\d+\.`)
 
-	imperativeVerbs := regexp.MustCompile(`(?i)^[-*]?\s*(always|never|do not|don't|must|should|ensure|make sure|use|avoid|prefer|run|execute|check|verify|include|exclude|add|remove|create|delete|update|follow|implement)`)
-	listItem := regexp.MustCompile(`^[-*]|\d+\.`)
+// CountInstructions estimates the number of instructions in the content
+func CountInstructions(lines []string) int {
+	count := 0
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -89,12 +107,12 @@ func countInstructions(lines []string) int {
 			continue
 		}
 
-		if imperativeVerbs.MatchString(line) {
+		if imperativeVerbPattern.MatchString(line) {
 			count++
 			continue
 		}
 
-		if listItem.MatchString(line) {
+		if listItemPattern.MatchString(line) {
 			trimmed := strings.TrimLeft(line, "-*0123456789. ")
 			if len(trimmed) > 10 {
 				count++
