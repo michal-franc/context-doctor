@@ -142,7 +142,7 @@ func findAllMDFilesGit(dir string) []string {
 
 func findAllMDFilesWalk(dir string) []string {
 	var files []string
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -200,7 +200,7 @@ func findOrphanMDFiles(dir string, analyses []*fileAnalysis) []string {
 
 func findCLAUDEFilesWalk(dir string) []string {
 	var files []string
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
