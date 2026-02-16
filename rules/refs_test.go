@@ -2,6 +2,7 @@ package rules
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -264,6 +265,87 @@ func TestFlattenRefs(t *testing.T) {
 		if ref.Path != expected[i] {
 			t.Errorf("flat[%d] = %q, want %q", i, ref.Path, expected[i])
 		}
+	}
+}
+
+// =============================================================================
+// Cross-directory reference resolution (issue #20)
+// =============================================================================
+
+func TestResolveReferences_ParentDirRelativePath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create:
+	//   repo/docs/guide.md
+	//   repo/subdir/  (baseDir — where CLAUDE.md lives)
+	docsDir := filepath.Join(tmpDir, "docs")
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.MkdirAll(docsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(docsDir, "guide.md"), []byte("# Guide\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := &AnalysisContext{
+		FilePath: filepath.Join(subDir, "CLAUDE.md"),
+		Metrics: map[string]any{
+			"progressiveDisclosureRefs": []string{"../docs/guide.md"},
+		},
+	}
+
+	refs := ResolveReferences(ctx, subDir, 90)
+	if len(refs) != 1 {
+		t.Fatalf("expected 1 ref, got %d", len(refs))
+	}
+	if !refs[0].Exists {
+		t.Errorf("expected ../docs/guide.md to resolve and exist, resolved to %q", refs[0].ResolvedPath)
+	}
+}
+
+func TestResolveReferences_RepoRootFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Initialize a git repo so getGitRoot works
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tmpDir
+	if err := cmd.Run(); err != nil {
+		t.Skipf("git init failed: %v", err)
+	}
+
+	// Create:
+	//   repo/docs/guide.md
+	//   repo/subdir/  (baseDir — where CLAUDE.md lives)
+	docsDir := filepath.Join(tmpDir, "docs")
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.MkdirAll(docsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(docsDir, "guide.md"), []byte("# Guide\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reference "docs/guide.md" from subdir — doesn't exist at subdir/docs/guide.md
+	// but should fallback to repo root
+	ctx := &AnalysisContext{
+		FilePath: filepath.Join(subDir, "CLAUDE.md"),
+		Metrics: map[string]any{
+			"progressiveDisclosureRefs": []string{"docs/guide.md"},
+		},
+	}
+
+	refs := ResolveReferences(ctx, subDir, 90)
+	if len(refs) != 1 {
+		t.Fatalf("expected 1 ref, got %d", len(refs))
+	}
+	if !refs[0].Exists {
+		t.Errorf("expected docs/guide.md to resolve via repo root fallback, resolved to %q", refs[0].ResolvedPath)
 	}
 }
 

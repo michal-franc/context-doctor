@@ -272,6 +272,38 @@ func TestFindProgressiveDisclosureRefs(t *testing.T) {
 			t.Errorf("expected 0 refs, got %d", len(refs))
 		}
 	})
+
+	t.Run("preserves parent-dir prefix in docs path", func(t *testing.T) {
+		content := "Jira CLI reference at `../docs/jira-cli.md`.\n"
+		refs := findProgressiveDisclosureRefs(content)
+
+		found := false
+		for _, ref := range refs {
+			if ref == "../docs/jira-cli.md" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected '../docs/jira-cli.md' in refs, got %v", refs)
+		}
+	})
+
+	t.Run("preserves nested parent-dir prefix", func(t *testing.T) {
+		content := "See ../../docs/guide.md for details.\n"
+		refs := findProgressiveDisclosureRefs(content)
+
+		found := false
+		for _, ref := range refs {
+			if ref == "../../docs/guide.md" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected '../../docs/guide.md' in refs, got %v", refs)
+		}
+	})
 }
 
 // =============================================================================
