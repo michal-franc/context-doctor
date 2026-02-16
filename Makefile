@@ -14,7 +14,7 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 
-.PHONY: all build clean test install uninstall help
+.PHONY: all build clean test coverage lint install uninstall help
 
 all: build
 
@@ -52,6 +52,16 @@ clean:
 ## test: Run tests
 test:
 	$(GOTEST) -v ./...
+
+## coverage: Run tests with coverage report
+coverage:
+	$(GOTEST) ./... -coverprofile=coverage.out -covermode=atomic
+	$(GOCMD) tool cover -func=coverage.out
+	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+
+## lint: Run linter
+lint:
+	golangci-lint run ./...
 
 ## deps: Download dependencies
 deps:

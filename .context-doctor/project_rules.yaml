@@ -1,0 +1,27 @@
+version: "1.0"
+rules:
+  - code: CD100
+    description: Missing linter instructions
+    severity: warning
+    category: content-quality
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: regexNotMatch
+      patterns:
+        - "(?i)make\\s+lint"
+    errorMessage: "No 'make lint' command found"
+    suggestion: "Document 'make lint' so Claude can verify code quality"
+
+  - code: CD101
+    description: Missing coverage instructions
+    severity: warning
+    category: content-quality
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: regexNotMatch
+      patterns:
+        - "(?i)make\\s+coverage"
+    errorMessage: "No 'make coverage' command found"
+    suggestion: "Document 'make coverage' so Claude can verify test completeness"

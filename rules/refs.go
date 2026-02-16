@@ -26,10 +26,11 @@ type RefInfo struct {
 // It follows references in referenced files, detecting circular references.
 func ResolveReferences(ctx *AnalysisContext, baseDir string, staleThresholdDays int) []RefInfo {
 	seen := make(map[string]bool)
-	return resolveRefsRecursive(ctx, baseDir, staleThresholdDays, ctx.FilePath, 0, seen)
+	repoRoot := getGitRoot(baseDir)
+	return resolveRefsRecursive(ctx, baseDir, repoRoot, staleThresholdDays, ctx.FilePath, 0, seen)
 }
 
-func resolveRefsRecursive(ctx *AnalysisContext, baseDir string, staleThresholdDays int, referencedBy string, depth int, seen map[string]bool) []RefInfo {
+func resolveRefsRecursive(ctx *AnalysisContext, baseDir string, repoRoot string, staleThresholdDays int, referencedBy string, depth int, seen map[string]bool) []RefInfo {
 	rawRefs, ok := ctx.Metrics["progressiveDisclosureRefs"].([]string)
 	if !ok || len(rawRefs) == 0 {
 		return nil
@@ -44,6 +45,17 @@ func resolveRefsRecursive(ctx *AnalysisContext, baseDir string, staleThresholdDa
 		}
 
 		resolved := filepath.Join(baseDir, ref)
+
+		// Fallback: if not found relative to baseDir, try repo root
+		if repoRoot != "" {
+			if _, err := os.Stat(resolved); err != nil {
+				fromRoot := filepath.Join(repoRoot, ref)
+				if _, err := os.Stat(fromRoot); err == nil {
+					resolved = fromRoot
+				}
+			}
+		}
+
 		absResolved, err := filepath.Abs(resolved)
 		if err != nil {
 			absResolved = resolved
@@ -86,7 +98,7 @@ func resolveRefsRecursive(ctx *AnalysisContext, baseDir string, staleThresholdDa
 
 			// Recurse into this file's references
 			childBaseDir := filepath.Dir(resolved)
-			info.Children = resolveRefsRecursive(info.Context, childBaseDir, staleThresholdDays, ref, depth+1, seen)
+			info.Children = resolveRefsRecursive(info.Context, childBaseDir, repoRoot, staleThresholdDays, ref, depth+1, seen)
 		}
 
 		refs = append(refs, info)
@@ -105,6 +117,17 @@ func FlattenRefs(refs []RefInfo) []RefInfo {
 		}
 	}
 	return flat
+}
+
+// getGitRoot returns the top-level directory of the git repository, or "" if not in a repo.
+func getGitRoot(dir string) string {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Dir = dir
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 // getGitLastModified tries to get the last commit date for a file using git
