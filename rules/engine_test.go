@@ -362,3 +362,51 @@ func TestFilterResults(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// Scope activity rule (CD055-style)
+// =============================================================================
+
+func TestEvaluate_ScopeActivityRule(t *testing.T) {
+	rule := Rule{
+		Code:     "CD055",
+		Severity: SeverityWarning,
+		Category: "staleness",
+		MatchSpec: MatchSpec{
+			Action: ActionAnd,
+			SubMatch: []MatchSpec{
+				{Metric: "claude_md_days_since_update", Action: ActionGreaterThan, Value: 90},
+				{Metric: "scope_commits_since_update", Action: ActionGreaterThan, Value: 0},
+			},
+		},
+		ErrorMessage: "CLAUDE.md is stale",
+	}
+	engine := NewEngine([]Rule{rule})
+
+	tests := []struct {
+		name       string
+		days       int
+		commits    int
+		wantPassed bool
+	}{
+		{"stale and active", 120, 5, true},
+		{"stale but dormant", 120, 0, false},
+		{"recent and active", 10, 5, false},
+		{"recent and dormant", 10, 0, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := makeCtx("content", 10, 2, map[string]any{
+				"claude_md_days_since_update": tc.days,
+				"scope_commits_since_update":  tc.commits,
+			})
+			results := engine.Evaluate(ctx)
+			if len(results) != 1 {
+				t.Fatalf("expected 1 result, got %d", len(results))
+			}
+			if results[0].Passed != tc.wantPassed {
+				t.Errorf("Passed = %v, want %v", results[0].Passed, tc.wantPassed)
+			}
+		})
+	}
+}

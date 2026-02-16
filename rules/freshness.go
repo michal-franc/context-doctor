@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"path/filepath"
 	"time"
 )
 
@@ -34,4 +35,18 @@ func CalculateFreshnessScore(filePath string) (score int, days int) {
 	}
 	days = int(time.Since(lastMod).Hours() / 24)
 	return ScoreFromDays(days), days
+}
+
+// ScopeActivitySinceUpdate returns the number of commits in the CLAUDE.md's
+// directory since the file was last updated, and the number of days since
+// that update. Returns (0, -1) if git history is unavailable.
+func ScopeActivitySinceUpdate(filePath string) (scopeCommits int, daysSinceUpdate int) {
+	lastMod := getGitLastModified(filePath)
+	if lastMod.IsZero() {
+		return 0, -1
+	}
+	daysSinceUpdate = int(time.Since(lastMod).Hours() / 24)
+	dir := filepath.Dir(filePath)
+	scopeCommits = countCommitsSince(dir, lastMod.Format(time.RFC3339))
+	return scopeCommits, daysSinceUpdate
 }

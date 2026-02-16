@@ -381,6 +381,25 @@ rules:
     errorMessage: "Combined instruction count across all context files exceeds 200"
     suggestion: "Trim instructions — total volume across all files affects LLM performance"
 
+  # Staleness detection
+  - code: CD055
+    description: CLAUDE.md is stale relative to repo activity in its scope
+    severity: warning
+    category: staleness
+    dimension: freshness
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: claude_md_days_since_update
+          action: greaterThan
+          value: 90
+        - metric: scope_commits_since_update
+          action: greaterThan
+          value: 0
+    errorMessage: "CLAUDE.md hasn't been updated but its directory scope has active commits"
+    suggestion: "Review and update CLAUDE.md to reflect recent code changes in its scope"
+
   # Cross-file consistency checks
   - code: CD034
     description: Duplicated instructions across context files

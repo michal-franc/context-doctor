@@ -349,6 +349,80 @@ func TestResolveReferences_RepoRootFallback(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// countCommitsSince
+// =============================================================================
+
+func TestCountCommitsSince_NoGitRepo(t *testing.T) {
+	tmpDir := t.TempDir()
+	count := countCommitsSince(tmpDir, "2020-01-01T00:00:00Z")
+	if count != 0 {
+		t.Errorf("expected 0 for non-git dir, got %d", count)
+	}
+}
+
+func TestCountCommitsSince_WithCommits(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Initialize repo and create a commit
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = tmpDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v failed: %s", args, out)
+		}
+	}
+	run("git", "init")
+	run("git", "config", "user.email", "test@test.com")
+	run("git", "config", "user.name", "Test")
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	run("git", "add", "file.txt")
+	run("git", "commit", "-m", "initial")
+
+	// Count commits since a year ago — should find at least 1
+	since := time.Now().Add(-365 * 24 * time.Hour).Format(time.RFC3339)
+	count := countCommitsSince(tmpDir, since)
+	if count < 1 {
+		t.Errorf("expected at least 1 commit, got %d", count)
+	}
+}
+
+func TestCountCommitsSince_DormantSubdir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = tmpDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v failed: %s", args, out)
+		}
+	}
+	run("git", "init")
+	run("git", "config", "user.email", "test@test.com")
+	run("git", "config", "user.name", "Test")
+
+	// Create a subdir with a file committed long ago
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, "old.txt"), []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	run("git", "add", "subdir/old.txt")
+	run("git", "commit", "-m", "old commit")
+
+	// Count commits in subdir since 1 second from now (future) — should be 0
+	since := time.Now().Add(time.Second).Format(time.RFC3339)
+	count := countCommitsSince(subDir, since)
+	if count != 0 {
+		t.Errorf("expected 0 commits since future date, got %d", count)
+	}
+}
+
 func TestEnrichContextWithRefMetrics_Empty(t *testing.T) {
 	ctx := &AnalysisContext{
 		Metrics: make(map[string]any),

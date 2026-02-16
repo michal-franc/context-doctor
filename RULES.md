@@ -79,6 +79,12 @@ These rules validate files referenced via progressive disclosure (e.g., `"see <p
 |------|----------|-------------|
 | CD034 | warning | Same instructions found in multiple context files. Keep each instruction in one place. |
 
+## Staleness Detection (primary)
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| CD055 | warning | CLAUDE.md hasn't been updated but its directory scope has active commits. Review and update to reflect recent changes. Only fires when both conditions are met: >90 days since last update AND commits in the scope since then. |
+
 ## Repository-Level Rules
 
 These rules only fire when scanning a directory (`context-doctor .`).
@@ -143,3 +149,5 @@ rules:
 - `stale_references_count` - Number of stale references (primary file only)
 - `total_instruction_count` - Combined instructions across all context files
 - `duplicate_instruction_count` - Number of duplicated instructions across files
+- `scope_commits_since_update` - Commits in the CLAUDE.md's directory since it was last updated
+- `claude_md_days_since_update` - Days since the CLAUDE.md was last modified in git

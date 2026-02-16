@@ -130,6 +130,22 @@ func getGitRoot(dir string) string {
 	return strings.TrimSpace(string(output))
 }
 
+// countCommitsSince counts commits in dir since the given date string (RFC3339 or git-compatible).
+// Returns 0 on error (consistent with other git helpers).
+func countCommitsSince(dir string, since string) int {
+	cmd := exec.Command("git", "log", "--since="+since, "--oneline", "--", ".")
+	cmd.Dir = dir
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	trimmed := strings.TrimSpace(string(output))
+	if trimmed == "" {
+		return 0
+	}
+	return len(strings.Split(trimmed, "\n"))
+}
+
 // getGitLastModified tries to get the last commit date for a file using git
 func getGitLastModified(filePath string) time.Time {
 	cmd := exec.Command("git", "log", "-1", "--format=%ci", filePath)

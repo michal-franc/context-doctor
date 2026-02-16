@@ -263,6 +263,10 @@ func buildAnalysis(filePath string) (*fileAnalysis, error) {
 	ctx.Metrics["total_instruction_count"] = aggMetrics.TotalInstructionCount
 	ctx.Metrics["duplicate_instruction_count"] = len(aggMetrics.Duplicates)
 
+	scopeCommits, claudeMdDays := rules.ScopeActivitySinceUpdate(filePath)
+	ctx.Metrics["scope_commits_since_update"] = scopeCommits
+	ctx.Metrics["claude_md_days_since_update"] = claudeMdDays
+
 	engine := rules.NewEngine(allRules)
 	results := engine.Evaluate(ctx)
 
@@ -521,6 +525,13 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 		pdStatus = "YES"
 	}
 	fmt.Printf("  Progressive Disclosure: %s\n", pdStatus)
+
+	if scopeCommits, ok := ctx.Metrics["scope_commits_since_update"].(int); ok {
+		claudeDays, _ := ctx.Metrics["claude_md_days_since_update"].(int)
+		if claudeDays >= 0 {
+			fmt.Printf("  Scope Activity:  %d commits since last CLAUDE.md update (%d days ago)\n", scopeCommits, claudeDays)
+		}
+	}
 	fmt.Println()
 
 	// Group results by category
@@ -546,7 +557,7 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 	}
 
 	// Print problems by category
-	categoryOrder := []string{"length", "instructions", "linter-abuse", "auto-generated", "progressive-disclosure", "referenced-docs", "cross-file-consistency"}
+	categoryOrder := []string{"length", "instructions", "linter-abuse", "auto-generated", "progressive-disclosure", "referenced-docs", "cross-file-consistency", "staleness"}
 	categoryNames := map[string]string{
 		"length":                  "LENGTH ISSUES",
 		"instructions":            "INSTRUCTION COUNT ISSUES",
@@ -555,6 +566,7 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 		"progressive-disclosure":  "PROGRESSIVE DISCLOSURE",
 		"referenced-docs":         "REFERENCED DOCS",
 		"cross-file-consistency":  "CROSS-FILE CONSISTENCY",
+		"staleness":               "STALENESS CHECK",
 	}
 
 	// Add any custom categories found in results
