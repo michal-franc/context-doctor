@@ -85,6 +85,27 @@ These rules validate files referenced via progressive disclosure (e.g., `"see <p
 |------|----------|-------------|
 | CD055 | warning | CLAUDE.md hasn't been updated but its directory scope has active commits. Review and update to reflect recent changes. Only fires when both conditions are met: >90 days since last update AND commits in the scope since then. |
 
+## Stack-Specific Suggestions (primary)
+
+These rules detect the project's technology stack by scanning for marker files (e.g., `go.mod`, `package.json`, `Cargo.toml`) and check whether the CLAUDE.md includes relevant stack-specific content. They only fire when a stack is detected *and* the relevant patterns are missing.
+
+When scanning a directory with no CLAUDE.md, context-doctor will detect the stack and suggest a starter template.
+
+**Detected stacks:** Go, Python, Node.js, TypeScript, Rust, Make, Docker, GitHub Actions
+
+| Code | Stack | Severity | Description |
+|------|-------|----------|-------------|
+| CD070 | Go | info | Go project detected but no build/test commands (go build/test/vet or make build/test/lint). |
+| CD071 | Go | info | Go project detected but no error handling conventions mentioned. |
+| CD072 | Go | info | Go project detected but no formatting tool (gofmt/goimports) referenced. |
+| CD073 | Python | info | Python project detected but no test framework (pytest/unittest) mentioned. |
+| CD074 | Python | info | Python project detected but no virtual environment or package manager mentioned. |
+| CD075 | Python | info | Python project detected but no linting/formatting tool (ruff/black/mypy) mentioned. |
+| CD076 | Node.js | info | Node.js project detected but no package manager or build/test commands found. |
+| CD077 | Node.js | info | Node.js project detected but no linting/formatting tools (ESLint/Prettier) mentioned. |
+| CD078 | Rust | info | Rust project detected but no cargo build/test/clippy commands found. |
+| CD079 | TypeScript | info | TypeScript project detected but no type checking conventions mentioned. |
+
 ## Repository-Level Rules
 
 These rules only fire when scanning a directory (`context-doctor .`).
@@ -138,6 +159,7 @@ rules:
 - `regexMatch` - Match against regex patterns
 - `regexNotMatch` - Inverse regex match
 - `isPresent` / `notPresent` - Check for pattern existence
+- `listContains` - Check if a value is present in a list metric (case-insensitive)
 - `and` - All sub-conditions must match
 - `or` - Any sub-condition must match
 
@@ -151,3 +173,4 @@ rules:
 - `duplicate_instruction_count` - Number of duplicated instructions across files
 - `scope_commits_since_update` - Commits in the CLAUDE.md's directory since it was last updated
 - `claude_md_days_since_update` - Days since the CLAUDE.md was last modified in git
+- `detected_stacks` - List of detected technology stacks (e.g., `["go", "docker", "github-actions"]`)

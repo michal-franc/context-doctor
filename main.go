@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"context-doctor/rules"
+	"context-doctor/templates"
 )
 
 var (
@@ -67,6 +68,7 @@ func main() {
 		files := findCLAUDEFiles(target)
 		if len(files) == 0 {
 			fmt.Fprintf(os.Stderr, "No CLAUDE.md files found in %s\n", target)
+			printTemplateSuggestion(target)
 			os.Exit(1)
 		}
 		printRepoReport(target, files)
@@ -256,6 +258,17 @@ func buildAnalysis(filePath string) (*fileAnalysis, error) {
 	ctx := rules.BuildContext(filePath, string(content))
 
 	baseDir := filepath.Dir(filePath)
+
+	// Detect technology stacks from repo root
+	repoRoot := rules.GetGitRoot(baseDir)
+	if repoRoot == "" {
+		repoRoot = baseDir
+	}
+	detectedStacks := rules.DetectStacks(repoRoot)
+	if len(detectedStacks) > 0 {
+		ctx.Metrics["detected_stacks"] = detectedStacks
+	}
+
 	refs := rules.ResolveReferences(ctx, baseDir, staleThreshold)
 	rules.EnrichContextWithRefMetrics(ctx, refs)
 
@@ -532,6 +545,10 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 			fmt.Printf("  Scope Activity:  %d commits since last CLAUDE.md update (%d days ago)\n", scopeCommits, claudeDays)
 		}
 	}
+
+	if stacks, ok := ctx.Metrics["detected_stacks"].([]string); ok && len(stacks) > 0 {
+		fmt.Printf("  Detected Stacks: %s\n", formatStackNames(stacks))
+	}
 	fmt.Println()
 
 	// Group results by category
@@ -557,7 +574,7 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 	}
 
 	// Print problems by category
-	categoryOrder := []string{"length", "instructions", "linter-abuse", "auto-generated", "progressive-disclosure", "referenced-docs", "cross-file-consistency", "staleness"}
+	categoryOrder := []string{"length", "instructions", "linter-abuse", "auto-generated", "progressive-disclosure", "referenced-docs", "cross-file-consistency", "staleness", "stack-suggestions"}
 	categoryNames := map[string]string{
 		"length":                  "LENGTH ISSUES",
 		"instructions":            "INSTRUCTION COUNT ISSUES",
@@ -567,6 +584,7 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 		"referenced-docs":         "REFERENCED DOCS",
 		"cross-file-consistency":  "CROSS-FILE CONSISTENCY",
 		"staleness":               "STALENESS CHECK",
+		"stack-suggestions":       "STACK-SPECIFIC SUGGESTIONS",
 	}
 
 	// Add any custom categories found in results
@@ -858,6 +876,51 @@ func getSeverityIcon(severity rules.Severity) string {
 	default:
 		return " "
 	}
+}
+
+func printTemplateSuggestion(dir string) {
+	stacks := rules.DetectStacks(dir)
+	if len(stacks) == 0 {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "\nDetected stacks: %s\n", formatStackNames(stacks))
+
+	tmpl := templates.GetCompositeTemplate(stacks)
+	if tmpl == "" {
+		return
+	}
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Suggested CLAUDE.md template:")
+	fmt.Fprintln(os.Stderr, strings.Repeat("-", 40))
+	fmt.Fprintln(os.Stderr, tmpl)
+	fmt.Fprintln(os.Stderr, strings.Repeat("-", 40))
+}
+
+func formatStackNames(stacks []string) string {
+	names := make([]string, len(stacks))
+	for i, s := range stacks {
+		names[i] = stackDisplayName(s)
+	}
+	return strings.Join(names, ", ")
+}
+
+func stackDisplayName(stack string) string {
+	displayNames := map[string]string{
+		"go":             "Go",
+		"python":         "Python",
+		"nodejs":         "Node.js",
+		"typescript":     "TypeScript",
+		"rust":           "Rust",
+		"make":           "Make",
+		"docker":         "Docker",
+		"github-actions": "GitHub Actions",
+	}
+	if name, ok := displayNames[stack]; ok {
+		return name
+	}
+	return stack
 }
 
 func calculateScore(_ *rules.AnalysisContext, results []rules.RuleResult) int {

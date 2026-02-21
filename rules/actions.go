@@ -23,6 +23,7 @@ func init() {
 		ActionRegexNotMatch: checkRegexNotMatch,
 		ActionIsPresent:     checkIsPresent,
 		ActionNotPresent:    checkNotPresent,
+		ActionListContains:  checkListContains,
 		ActionAnd:           checkAnd,
 		ActionOr:            checkOr,
 	}
@@ -217,6 +218,27 @@ func checkIsPresent(ctx *AnalysisContext, spec *MatchSpec) bool {
 
 func checkNotPresent(ctx *AnalysisContext, spec *MatchSpec) bool {
 	return !checkIsPresent(ctx, spec)
+}
+
+func checkListContains(ctx *AnalysisContext, spec *MatchSpec) bool {
+	metricVal := getMetricValue(ctx, spec.Metric)
+	if metricVal == nil {
+		return false
+	}
+	list, ok := metricVal.([]string)
+	if !ok {
+		return false
+	}
+	target := strings.ToLower(toString(spec.Value))
+	if target == "" {
+		return false
+	}
+	for _, item := range list {
+		if strings.ToLower(item) == target {
+			return true
+		}
+	}
+	return false
 }
 
 func checkAnd(ctx *AnalysisContext, spec *MatchSpec) bool {

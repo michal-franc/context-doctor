@@ -26,7 +26,7 @@ type RefInfo struct {
 // It follows references in referenced files, detecting circular references.
 func ResolveReferences(ctx *AnalysisContext, baseDir string, staleThresholdDays int) []RefInfo {
 	seen := make(map[string]bool)
-	repoRoot := getGitRoot(baseDir)
+	repoRoot := GetGitRoot(baseDir)
 	return resolveRefsRecursive(ctx, baseDir, repoRoot, staleThresholdDays, ctx.FilePath, 0, seen)
 }
 
@@ -119,8 +119,8 @@ func FlattenRefs(refs []RefInfo) []RefInfo {
 	return flat
 }
 
-// getGitRoot returns the top-level directory of the git repository, or "" if not in a repo.
-func getGitRoot(dir string) string {
+// GetGitRoot returns the top-level directory of the git repository, or "" if not in a repo.
+func GetGitRoot(dir string) string {
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
 	cmd.Dir = dir
 	output, err := cmd.Output()

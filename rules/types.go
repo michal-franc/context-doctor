@@ -38,6 +38,7 @@ const (
 	ActionRegexNotMatch CheckAction = "regexNotMatch"
 	ActionIsPresent     CheckAction = "isPresent"
 	ActionNotPresent    CheckAction = "notPresent"
+	ActionListContains  CheckAction = "listContains"
 	ActionAnd           CheckAction = "and"
 	ActionOr            CheckAction = "or"
 )

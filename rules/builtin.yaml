@@ -400,6 +400,218 @@ rules:
     errorMessage: "CLAUDE.md hasn't been updated but its directory scope has active commits"
     suggestion: "Review and update CLAUDE.md to reflect recent code changes in its scope"
 
+  # Stack-specific suggestion rules
+  # These fire when a stack is detected but the CLAUDE.md is missing relevant content.
+  # Each uses "and" with listContains (stack detected) + regexNotMatch (pattern missing).
+
+  - code: CD070
+    description: Go project missing build/test/lint commands
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "go"
+        - action: regexNotMatch
+          patterns:
+            - "go\\s+(build|test|vet)"
+            - "make\\s+(build|test|lint)"
+    errorMessage: "Go project detected but no Go build/test commands found"
+    suggestion: "Add go build, go test, and go vet commands to your CLAUDE.md"
+
+  - code: CD071
+    description: Go project missing error handling conventions
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "go"
+        - action: regexNotMatch
+          patterns:
+            - "error\\s+handling"
+            - "return\\s+err"
+            - "explicit\\s+error"
+            - "don'?t\\s+(use\\s+)?panic"
+    errorMessage: "Go project detected but no error handling conventions mentioned"
+    suggestion: "Document error handling patterns (e.g., prefer explicit error returns over panics)"
+
+  - code: CD072
+    description: Go project missing formatting tool reference
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "go"
+        - action: regexNotMatch
+          patterns:
+            - "gofmt"
+            - "goimports"
+            - "go\\s+fmt"
+    errorMessage: "Go project detected but no formatting tool (gofmt/goimports) mentioned"
+    suggestion: "Add 'Use gofmt for formatting' to your code style section"
+
+  - code: CD073
+    description: Python project missing test framework reference
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "python"
+        - action: regexNotMatch
+          patterns:
+            - "pytest"
+            - "unittest"
+            - "python\\s+-m\\s+test"
+    errorMessage: "Python project detected but no test framework (pytest/unittest) mentioned"
+    suggestion: "Add test commands (e.g., pytest) to your CLAUDE.md"
+
+  - code: CD074
+    description: Python project missing venv/package manager reference
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "python"
+        - action: regexNotMatch
+          patterns:
+            - "venv"
+            - "virtualenv"
+            - "pip\\s+install"
+            - "pipenv"
+            - "poetry"
+            - "uv"
+            - "conda"
+    errorMessage: "Python project detected but no virtual environment or package manager mentioned"
+    suggestion: "Document how to set up the development environment (venv, pip, poetry, etc.)"
+
+  - code: CD075
+    description: Python project missing formatting/linting reference
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "python"
+        - action: regexNotMatch
+          patterns:
+            - "ruff"
+            - "black"
+            - "flake8"
+            - "mypy"
+            - "pylint"
+            - "pyright"
+    errorMessage: "Python project detected but no linting/formatting tool mentioned"
+    suggestion: "Add formatting (ruff/black) and type checking (mypy) to your CLAUDE.md"
+
+  - code: CD076
+    description: Node.js project missing package manager and build/test commands
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "nodejs"
+        - action: regexNotMatch
+          patterns:
+            - "(npm|yarn|pnpm|bun)\\s+(run\\s+)?(build|test|start)"
+            - "(npm|yarn|pnpm|bun)\\s+install"
+    errorMessage: "Node.js project detected but no package manager or build/test commands found"
+    suggestion: "Add npm/yarn/pnpm install and build/test commands to your CLAUDE.md"
+
+  - code: CD077
+    description: Node.js project missing linting/formatting reference
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "nodejs"
+        - action: regexNotMatch
+          patterns:
+            - "eslint"
+            - "prettier"
+            - "biome"
+    errorMessage: "Node.js project detected but no linting/formatting tools mentioned"
+    suggestion: "Add ESLint/Prettier/Biome configuration to your CLAUDE.md"
+
+  - code: CD078
+    description: Rust project missing cargo build/test/clippy
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "rust"
+        - action: regexNotMatch
+          patterns:
+            - "cargo\\s+(build|test|clippy)"
+            - "cargo\\s+fmt"
+            - "rustfmt"
+    errorMessage: "Rust project detected but no cargo build/test/clippy commands found"
+    suggestion: "Add cargo build, cargo test, and cargo clippy commands to your CLAUDE.md"
+
+  - code: CD079
+    description: TypeScript project missing type checking conventions
+    severity: info
+    category: stack-suggestions
+    dimension: compliance
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: detected_stacks
+          action: listContains
+          value: "typescript"
+        - action: regexNotMatch
+          patterns:
+            - "tsc"
+            - "tsconfig"
+            - "type\\s*check"
+            - "strict\\s+mode"
+            - "\\bany\\b"
+    errorMessage: "TypeScript project detected but no type checking conventions mentioned"
+    suggestion: "Add TypeScript conventions (strict mode, avoid any, type checking commands)"
+
   # Cross-file consistency checks
   - code: CD034
     description: Duplicated instructions across context files
