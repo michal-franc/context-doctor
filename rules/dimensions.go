@@ -26,6 +26,8 @@ var categoryToDimension = map[string]Dimension{
 	"auto-generated":          DimensionCompliance,
 	"content-quality":         DimensionCompliance,
 	"cross-file-consistency":  DimensionCompliance,
+	"staleness":               DimensionFreshness,
+	"stack-suggestions":       DimensionCompliance,
 }
 
 // ResolveDimension returns the dimension for a rule. It prefers the explicit

@@ -154,6 +154,7 @@ func findProgressiveDisclosureRefs(content string) []string {
 		regexp.MustCompile(`((?:\.\./)*docs?/[\w/.-]+\.md)`),
 		regexp.MustCompile(`(?i)check\s+([\w/.-]+\.md)`),
 		regexp.MustCompile(`[-*]\s*\x60?([\w/.-]+\.md)\x60?\s*[-:]`),
+		regexp.MustCompile(`\[.*?\]\(([\w/.'-]+\.md)\)`),
 	}
 
 	for _, pattern := range patterns {

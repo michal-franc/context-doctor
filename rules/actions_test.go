@@ -386,6 +386,51 @@ func TestCheckNotPresent(t *testing.T) {
 }
 
 // =============================================================================
+// List membership action (listContains)
+// =============================================================================
+
+func TestCheckListContains(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctx     *AnalysisContext
+		spec    *MatchSpec
+		want    bool
+	}{
+		{"item found in list",
+			makeCtx("", 0, 0, map[string]any{"stacks": []string{"go", "docker"}}),
+			&MatchSpec{Metric: MetricType("stacks"), Action: ActionListContains, Value: "go"}, true},
+		{"item not found",
+			makeCtx("", 0, 0, map[string]any{"stacks": []string{"python", "docker"}}),
+			&MatchSpec{Metric: MetricType("stacks"), Action: ActionListContains, Value: "go"}, false},
+		{"case insensitive",
+			makeCtx("", 0, 0, map[string]any{"stacks": []string{"Go", "Docker"}}),
+			&MatchSpec{Metric: MetricType("stacks"), Action: ActionListContains, Value: "go"}, true},
+		{"empty list",
+			makeCtx("", 0, 0, map[string]any{"stacks": []string{}}),
+			&MatchSpec{Metric: MetricType("stacks"), Action: ActionListContains, Value: "go"}, false},
+		{"nil metric",
+			makeCtx("", 0, 0, nil),
+			&MatchSpec{Metric: MetricType("stacks"), Action: ActionListContains, Value: "go"}, false},
+		{"non-list metric",
+			makeCtx("", 0, 0, map[string]any{"stacks": "not a list"}),
+			&MatchSpec{Metric: MetricType("stacks"), Action: ActionListContains, Value: "go"}, false},
+		{"empty value",
+			makeCtx("", 0, 0, map[string]any{"stacks": []string{"go"}}),
+			&MatchSpec{Metric: MetricType("stacks"), Action: ActionListContains, Value: ""}, false},
+		{"nil value",
+			makeCtx("", 0, 0, map[string]any{"stacks": []string{"go"}}),
+			&MatchSpec{Metric: MetricType("stacks"), Action: ActionListContains}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := checkListContains(tc.ctx, tc.spec); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// =============================================================================
 // Logical combinators (and / or)
 // =============================================================================
 

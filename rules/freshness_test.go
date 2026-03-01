@@ -1,6 +1,9 @@
 package rules
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 // =============================================================================
 // ScoreFromDays
@@ -33,5 +36,22 @@ func TestScoreFromDays(t *testing.T) {
 				t.Errorf("ScoreFromDays(%d) = %d, want %d", tc.days, got, tc.want)
 			}
 		})
+	}
+}
+
+// =============================================================================
+// ScopeActivitySinceUpdate
+// =============================================================================
+
+func TestScopeActivitySinceUpdate_NoGitHistory(t *testing.T) {
+	tmpDir := t.TempDir()
+	fakePath := filepath.Join(tmpDir, "CLAUDE.md")
+
+	scopeCommits, days := ScopeActivitySinceUpdate(fakePath)
+	if scopeCommits != 0 {
+		t.Errorf("expected 0 scope commits, got %d", scopeCommits)
+	}
+	if days != -1 {
+		t.Errorf("expected -1 days, got %d", days)
 	}
 }

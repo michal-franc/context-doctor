@@ -26,7 +26,7 @@ type RefInfo struct {
 // It follows references in referenced files, detecting circular references.
 func ResolveReferences(ctx *AnalysisContext, baseDir string, staleThresholdDays int) []RefInfo {
 	seen := make(map[string]bool)
-	repoRoot := getGitRoot(baseDir)
+	repoRoot := GetGitRoot(baseDir)
 	return resolveRefsRecursive(ctx, baseDir, repoRoot, staleThresholdDays, ctx.FilePath, 0, seen)
 }
 
@@ -119,8 +119,8 @@ func FlattenRefs(refs []RefInfo) []RefInfo {
 	return flat
 }
 
-// getGitRoot returns the top-level directory of the git repository, or "" if not in a repo.
-func getGitRoot(dir string) string {
+// GetGitRoot returns the top-level directory of the git repository, or "" if not in a repo.
+func GetGitRoot(dir string) string {
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
 	cmd.Dir = dir
 	output, err := cmd.Output()
@@ -128,6 +128,22 @@ func getGitRoot(dir string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(output))
+}
+
+// countCommitsSince counts commits in dir since the given date string (RFC3339 or git-compatible).
+// Returns 0 on error (consistent with other git helpers).
+func countCommitsSince(dir string, since string) int {
+	cmd := exec.Command("git", "log", "--since="+since, "--oneline", "--", ".")
+	cmd.Dir = dir
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	trimmed := strings.TrimSpace(string(output))
+	if trimmed == "" {
+		return 0
+	}
+	return len(strings.Split(trimmed, "\n"))
 }
 
 // getGitLastModified tries to get the last commit date for a file using git
