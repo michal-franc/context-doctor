@@ -289,6 +289,54 @@ func TestFindProgressiveDisclosureRefs(t *testing.T) {
 		}
 	})
 
+	t.Run("markdown link self-referencing", func(t *testing.T) {
+		content := "Check [KLAUDIUSH.md](KLAUDIUSH.md) for details.\n"
+		refs := findProgressiveDisclosureRefs(content)
+
+		found := false
+		for _, ref := range refs {
+			if ref == "KLAUDIUSH.md" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected 'KLAUDIUSH.md' in refs, got %v", refs)
+		}
+	})
+
+	t.Run("markdown link with different label", func(t *testing.T) {
+		content := "See [Playing via Game API](CLAUDE_PLAYER.md) for details.\n"
+		refs := findProgressiveDisclosureRefs(content)
+
+		found := false
+		for _, ref := range refs {
+			if ref == "CLAUDE_PLAYER.md" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected 'CLAUDE_PLAYER.md' in refs, got %v", refs)
+		}
+	})
+
+	t.Run("markdown link to subdirectory", func(t *testing.T) {
+		content := "Read [Architecture](docs/architecture.md) first.\n"
+		refs := findProgressiveDisclosureRefs(content)
+
+		found := false
+		for _, ref := range refs {
+			if ref == "docs/architecture.md" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected 'docs/architecture.md' in refs, got %v", refs)
+		}
+	})
+
 	t.Run("preserves nested parent-dir prefix", func(t *testing.T) {
 		content := "See ../../docs/guide.md for details.\n"
 		refs := findProgressiveDisclosureRefs(content)
