@@ -27,7 +27,7 @@ rules:
       action: greaterThan
       value: 100
     errorMessage: "File has more than 100 lines"
-    suggestion: "Consider being more concise. Ideal CLAUDE.md is ~60 lines"
+    suggestion: "Consider being more concise. Ideal context file is ~60 lines"
 
   # Instruction count checks
   - code: CD003
@@ -147,7 +147,7 @@ rules:
         - "auto-?generated"
         - "this\\s+file\\s+was\\s+(created|generated)"
     errorMessage: "File appears to be auto-generated"
-    suggestion: "CLAUDE.md is high-leverage. Carefully craft each line manually instead of using /init"
+    suggestion: "Your context file is high-leverage. Carefully craft each line manually instead of using /init"
 
   - code: CD021
     description: Init command reference detected
@@ -161,7 +161,7 @@ rules:
         - "/init"
         - "claude\\s+code\\s+initialized"
     errorMessage: "References to /init command found"
-    suggestion: "Avoid using /init. Manually craft your CLAUDE.md for best results"
+    suggestion: "Avoid using /init. Manually craft your context file for best results"
 
   # Progressive disclosure checks
   - code: CD030
@@ -383,7 +383,7 @@ rules:
 
   # Staleness detection
   - code: CD055
-    description: CLAUDE.md is stale relative to repo activity in its scope
+    description: Context file is stale relative to repo activity in its scope
     severity: warning
     category: staleness
     dimension: freshness
@@ -397,11 +397,11 @@ rules:
         - metric: scope_commits_since_update
           action: greaterThan
           value: 0
-    errorMessage: "CLAUDE.md hasn't been updated but its directory scope has active commits"
-    suggestion: "Review and update CLAUDE.md to reflect recent code changes in its scope"
+    errorMessage: "Context file hasn't been updated but its directory scope has active commits"
+    suggestion: "Review and update your context file to reflect recent code changes in its scope"
 
   # Stack-specific suggestion rules
-  # These fire when a stack is detected but the CLAUDE.md is missing relevant content.
+  # These fire when a stack is detected but the context file is missing relevant content.
   # Each uses "and" with listContains (stack detected) + regexNotMatch (pattern missing).
 
   - code: CD070
@@ -421,7 +421,7 @@ rules:
             - "go\\s+(build|test|vet)"
             - "make\\s+(build|test|lint)"
     errorMessage: "Go project detected but no Go build/test commands found"
-    suggestion: "Add go build, go test, and go vet commands to your CLAUDE.md"
+    suggestion: "Add go build, go test, and go vet commands to your context file"
 
   - code: CD071
     description: Go project missing error handling conventions
@@ -482,7 +482,7 @@ rules:
             - "unittest"
             - "python\\s+-m\\s+test"
     errorMessage: "Python project detected but no test framework (pytest/unittest) mentioned"
-    suggestion: "Add test commands (e.g., pytest) to your CLAUDE.md"
+    suggestion: "Add test commands (e.g., pytest) to your context file"
 
   - code: CD074
     description: Python project missing venv/package manager reference
@@ -529,7 +529,7 @@ rules:
             - "pylint"
             - "pyright"
     errorMessage: "Python project detected but no linting/formatting tool mentioned"
-    suggestion: "Add formatting (ruff/black) and type checking (mypy) to your CLAUDE.md"
+    suggestion: "Add formatting (ruff/black) and type checking (mypy) to your context file"
 
   - code: CD076
     description: Node.js project missing package manager and build/test commands
@@ -548,7 +548,7 @@ rules:
             - "(npm|yarn|pnpm|bun)\\s+(run\\s+)?(build|test|start)"
             - "(npm|yarn|pnpm|bun)\\s+install"
     errorMessage: "Node.js project detected but no package manager or build/test commands found"
-    suggestion: "Add npm/yarn/pnpm install and build/test commands to your CLAUDE.md"
+    suggestion: "Add npm/yarn/pnpm install and build/test commands to your context file"
 
   - code: CD077
     description: Node.js project missing linting/formatting reference
@@ -568,7 +568,7 @@ rules:
             - "prettier"
             - "biome"
     errorMessage: "Node.js project detected but no linting/formatting tools mentioned"
-    suggestion: "Add ESLint/Prettier/Biome configuration to your CLAUDE.md"
+    suggestion: "Add ESLint/Prettier/Biome configuration to your context file"
 
   - code: CD078
     description: Rust project missing cargo build/test/clippy
@@ -588,7 +588,7 @@ rules:
             - "cargo\\s+fmt"
             - "rustfmt"
     errorMessage: "Rust project detected but no cargo build/test/clippy commands found"
-    suggestion: "Add cargo build, cargo test, and cargo clippy commands to your CLAUDE.md"
+    suggestion: "Add cargo build, cargo test, and cargo clippy commands to your context file"
 
   - code: CD079
     description: TypeScript project missing type checking conventions
