@@ -49,7 +49,7 @@ func main() {
 	}
 
 	if flag.NArg() < 1 {
-		fmt.Println("Usage: context-doctor [options] <path-to-CLAUDE.md | directory>")
+		fmt.Println("Usage: context-doctor [options] <path-to-context-file | directory>")
 		fmt.Println("\nOptions:")
 		flag.PrintDefaults()
 		os.Exit(1)
@@ -65,9 +65,9 @@ func main() {
 	}
 
 	if info.IsDir() {
-		files := findCLAUDEFiles(target)
+		files := findContextFiles(target)
 		if len(files) == 0 {
-			fmt.Fprintf(os.Stderr, "No CLAUDE.md files found in %s\n", target)
+			fmt.Fprintf(os.Stderr, "No context files found (CLAUDE.md, AGENTS.md) in %s\n", target)
 			printTemplateSuggestion(target)
 			os.Exit(1)
 		}
@@ -77,19 +77,20 @@ func main() {
 	}
 }
 
-// findCLAUDEFiles finds all CLAUDE.md files in a directory, respecting .gitignore
-func findCLAUDEFiles(dir string) []string {
+// findContextFiles finds all context files (CLAUDE.md, AGENTS.md) in a directory, respecting .gitignore
+func findContextFiles(dir string) []string {
 	// Try git ls-files first — respects .gitignore automatically
-	if files := findCLAUDEFilesGit(dir); files != nil {
+	if files := findContextFilesGit(dir); files != nil {
 		return files
 	}
 	// Fallback for non-git directories
-	return findCLAUDEFilesWalk(dir)
+	return findContextFilesWalk(dir)
 }
 
-func findCLAUDEFilesGit(dir string) []string {
+func findContextFilesGit(dir string) []string {
 	// --cached: tracked files, --others: untracked, --exclude-standard: respect .gitignore
-	cmd := exec.Command("git", "ls-files", "--cached", "--others", "--exclude-standard", "CLAUDE.md", "*/CLAUDE.md")
+	cmd := exec.Command("git", "ls-files", "--cached", "--others", "--exclude-standard",
+		"CLAUDE.md", "*/CLAUDE.md", "AGENTS.md", "*/AGENTS.md")
 	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err != nil {
@@ -170,14 +171,14 @@ func findAllMDFilesWalk(dir string) []string {
 	return files
 }
 
-// findOrphanMDFiles returns .md files not referenced by any CLAUDE.md and not CLAUDE.md themselves
+// findOrphanMDFiles returns .md files not referenced by any context file and not context files themselves
 func findOrphanMDFiles(dir string, analyses []*fileAnalysis) []string {
 	allMD := findAllMDFiles(dir)
 
 	// Build set of referenced paths (relative to dir)
 	referenced := make(map[string]bool)
 	for _, fa := range analyses {
-		// Mark the CLAUDE.md file itself
+		// Mark the context file itself
 		rel, err := filepath.Rel(dir, fa.FilePath)
 		if err != nil {
 			rel = fa.FilePath
@@ -200,7 +201,7 @@ func findOrphanMDFiles(dir string, analyses []*fileAnalysis) []string {
 	return orphans
 }
 
-func findCLAUDEFilesWalk(dir string) []string {
+func findContextFilesWalk(dir string) []string {
 	var files []string
 	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -216,7 +217,8 @@ func findCLAUDEFilesWalk(dir string) []string {
 			}
 			return nil
 		}
-		if filepath.Base(path) == "CLAUDE.md" {
+		name := filepath.Base(path)
+		if name == "CLAUDE.md" || name == "AGENTS.md" {
 			files = append(files, path)
 		}
 		return nil
@@ -224,7 +226,7 @@ func findCLAUDEFilesWalk(dir string) []string {
 	return files
 }
 
-// fileAnalysis holds all analysis results for a single CLAUDE.md file
+// fileAnalysis holds all analysis results for a single context file
 type fileAnalysis struct {
 	FilePath        string
 	Ctx             *rules.AnalysisContext
@@ -358,13 +360,13 @@ func printRepoReport(dir string, files []string) {
 		return
 	}
 
-	// Multiple CLAUDE.md violation
+	// Multiple context files violation
 	if len(analyses) > 1 {
-		fmt.Println("✗ [CD060] MULTIPLE CLAUDE.md FILES DETECTED")
+		fmt.Println("✗ [CD060] MULTIPLE CONTEXT FILES DETECTED")
 		fmt.Println(strings.Repeat("-", 40))
-		fmt.Println("  A repository should have exactly one CLAUDE.md at the root.")
+		fmt.Println("  A repository should have exactly one context file at the root.")
 		fmt.Println("  Multiple files fragment context and confuse the LLM.")
-		fmt.Println("  Consolidate into root CLAUDE.md and use progressive")
+		fmt.Println("  Consolidate into a single root context file and use progressive")
 		fmt.Println("  disclosure to reference supporting docs.")
 		fmt.Println()
 		for _, fa := range analyses {
@@ -378,7 +380,7 @@ func printRepoReport(dir string, files []string) {
 	}
 
 	// Summary table
-	fmt.Printf("FILES (%d CLAUDE.md found)\n", len(analyses))
+	fmt.Printf("FILES (%d context files found)\n", len(analyses))
 	fmt.Println(strings.Repeat("-", 40))
 
 	totalScore := 0
@@ -455,7 +457,7 @@ func printRepoReport(dir string, files []string) {
 	// Orphan docs section
 	orphans := findOrphanMDFiles(dir, analyses)
 	if len(orphans) > 0 {
-		fmt.Println("ORPHAN DOCS (not referenced by any CLAUDE.md)")
+		fmt.Println("ORPHAN DOCS (not referenced by any context file)")
 		fmt.Println(strings.Repeat("-", 40))
 		for _, o := range orphans {
 			fmt.Printf("  ? %s\n", o)
@@ -466,7 +468,7 @@ func printRepoReport(dir string, files []string) {
 	// Repo totals
 	avgScore := totalScore / len(analyses)
 	if len(analyses) > 1 {
-		// Heavy penalty for multiple CLAUDE.md files
+		// Heavy penalty for multiple context files
 		avgScore = max(0, avgScore-30)
 		totalErrors++
 	}
@@ -505,7 +507,7 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 	aggMetrics := fa.AggMetrics
 
 	fmt.Println("=" + strings.Repeat("=", 59))
-	fmt.Println("  CLAUDE.md Analysis Report")
+	fmt.Println("  Context File Analysis Report")
 	fmt.Println("=" + strings.Repeat("=", 59))
 	fmt.Println()
 
@@ -542,7 +544,7 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 	if scopeCommits, ok := ctx.Metrics["scope_commits_since_update"].(int); ok {
 		claudeDays, _ := ctx.Metrics["claude_md_days_since_update"].(int)
 		if claudeDays >= 0 {
-			fmt.Printf("  Scope Activity:  %d commits since last CLAUDE.md update (%d days ago)\n", scopeCommits, claudeDays)
+			fmt.Printf("  Scope Activity:  %d commits since last context file update (%d days ago)\n", scopeCommits, claudeDays)
 		}
 	}
 
@@ -693,7 +695,7 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 		printDimensionScores(fa.DimensionScores, fa.FreshnessDays)
 
 		if !hasProblems && fa.DimensionScores.Overall == 100 {
-			fmt.Println("  ✓ Excellent! Your CLAUDE.md follows best practices.")
+			fmt.Println("  ✓ Excellent! Your context file follows best practices.")
 			fmt.Println()
 		}
 	}
@@ -892,7 +894,7 @@ func printTemplateSuggestion(dir string) {
 	}
 
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "Suggested CLAUDE.md template:")
+	fmt.Fprintln(os.Stderr, "Suggested context file template:")
 	fmt.Fprintln(os.Stderr, strings.Repeat("-", 40))
 	fmt.Fprintln(os.Stderr, tmpl)
 	fmt.Fprintln(os.Stderr, strings.Repeat("-", 40))

@@ -427,7 +427,7 @@ func TestEvaluate_ScopeActivityRule(t *testing.T) {
 				{Metric: "scope_commits_since_update", Action: ActionGreaterThan, Value: 0},
 			},
 		},
-		ErrorMessage: "CLAUDE.md is stale",
+		ErrorMessage: "Context file is stale",
 	}
 	engine := NewEngine([]Rule{rule})
 
