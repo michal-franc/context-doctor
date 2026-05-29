@@ -153,7 +153,7 @@ func findProgressiveDisclosureRefs(content string) []string {
 		regexp.MustCompile(`(?i)read\s+([\w/.-]+\.md)`),
 		regexp.MustCompile(`((?:\.\./)*docs?/[\w/.-]+\.md)`),
 		regexp.MustCompile(`(?i)check\s+([\w/.-]+\.md)`),
-		regexp.MustCompile(`[-*]\s*\x60?([\w/.-]+\.md)\x60?\s*[-:]`),
+		regexp.MustCompile(`(?m)^[ \t]*[-*]\s*\x60?([\w/.-]+\.md)\x60?[ \t]*[-:]`),
 		regexp.MustCompile(`\[.*?\]\(([\w/.'-]+\.md)\)`),
 	}
 
