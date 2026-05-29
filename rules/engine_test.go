@@ -352,6 +352,39 @@ func TestFindProgressiveDisclosureRefs(t *testing.T) {
 			t.Errorf("expected '../../docs/guide.md' in refs, got %v", refs)
 		}
 	})
+
+	t.Run("hyphenated path in list item followed by another list item (CD031 false positive)", func(t *testing.T) {
+		// Regression for #33: the bullet pattern must not match a hyphen inside a
+		// path, nor let the next list item's bullet close the match across a
+		// newline — both produced the phantom "bar/SKILL.md" from "foo-bar/SKILL.md".
+		content := "- First item: `foo-bar/SKILL.md`\n- Second item: just text\n"
+		refs := findProgressiveDisclosureRefs(content)
+
+		for _, ref := range refs {
+			if ref == "bar/SKILL.md" {
+				t.Errorf("captured phantom truncated path %q from %v", ref, refs)
+			}
+		}
+	})
+
+	t.Run("list item with hyphen delimiter still matches", func(t *testing.T) {
+		// Guards the legitimate "- path.md - description" form the fix must keep,
+		// including an indented (nested) bullet.
+		for _, content := range []string{"- docs/api.md - API ref\n", "  - nested/path.md - indented\n"} {
+			refs := findProgressiveDisclosureRefs(content)
+
+			found := false
+			for _, ref := range refs {
+				if ref == "docs/api.md" || ref == "nested/path.md" {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected list-item ref to be captured from %q, got %v", content, refs)
+			}
+		}
+	})
 }
 
 // =============================================================================
