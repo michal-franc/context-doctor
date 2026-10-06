@@ -17,8 +17,8 @@ func TestLoadBuiltinRules(t *testing.T) {
 	}
 
 	t.Run("has expected count", func(t *testing.T) {
-		if len(rules) != 36 {
-			t.Errorf("expected 36 rules, got %d", len(rules))
+		if len(rules) != 38 {
+			t.Errorf("expected 38 rules, got %d", len(rules))
 		}
 	})
 
@@ -277,8 +277,8 @@ func TestLoadAllRules(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(rules) != 37 { // 36 builtin + 1 custom
-			t.Errorf("expected 37 rules, got %d", len(rules))
+		if len(rules) != 39 { // 38 builtin + 1 custom
+			t.Errorf("expected 39 rules, got %d", len(rules))
 		}
 	})
 
