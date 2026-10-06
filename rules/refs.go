@@ -146,9 +146,11 @@ func countCommitsSince(dir string, since string) int {
 	return len(strings.Split(trimmed, "\n"))
 }
 
-// getGitLastModified tries to get the last commit date for a file using git
+// getGitLastModified tries to get the last commit date for a file using git.
+// git runs in the file's directory, so the pathspec must be the base name:
+// a relative path would otherwise be resolved twice (dir/dir/file).
 func getGitLastModified(filePath string) time.Time {
-	cmd := exec.Command("git", "log", "-1", "--format=%ci", filePath)
+	cmd := exec.Command("git", "log", "-1", "--format=%ci", "--", filepath.Base(filePath))
 	cmd.Dir = filepath.Dir(filePath)
 	output, err := cmd.Output()
 	if err != nil {
