@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -487,6 +488,88 @@ func TestEvaluate_ScopeActivityRule(t *testing.T) {
 			}
 			if results[0].Passed != tc.wantPassed {
 				t.Errorf("Passed = %v, want %v", results[0].Passed, tc.wantPassed)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Instruction density
+// =============================================================================
+
+func TestInstructionDensityPercent(t *testing.T) {
+	tests := []struct {
+		name         string
+		instructions int
+		lines        int
+		want         int
+	}{
+		{"empty file", 0, 0, 0},
+		{"no instructions", 0, 50, 0},
+		{"sparse file", 30, 200, 15},
+		{"dense file", 45, 50, 90},
+		{"every line an instruction", 10, 10, 100},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := InstructionDensityPercent(tt.instructions, tt.lines); got != tt.want {
+				t.Errorf("InstructionDensityPercent(%d, %d) = %d, want %d", tt.instructions, tt.lines, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuiltinDensityRules(t *testing.T) {
+	all, err := LoadBuiltinRules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var densityRules []Rule
+	for _, r := range all {
+		if r.Code == "CD005" || r.Code == "CD006" {
+			densityRules = append(densityRules, r)
+		}
+	}
+	if len(densityRules) != 2 {
+		t.Fatalf("expected CD005 and CD006 in builtin rules, got %d", len(densityRules))
+	}
+	engine := NewEngine(densityRules)
+
+	// content builds a file of n lines where the first k are instructions
+	content := func(n, k int) string {
+		var b strings.Builder
+		for i := 0; i < n; i++ {
+			if i < k {
+				b.WriteString("- Always run the full test suite before committing\n")
+			} else {
+				b.WriteString("This paragraph explains the context for the rules above.\n")
+			}
+		}
+		return strings.TrimSuffix(b.String(), "\n")
+	}
+
+	tests := []struct {
+		name      string
+		lines     int
+		instrs    int
+		wantFired []string
+	}{
+		{"low density", 40, 10, nil},
+		{"moderate density", 40, 24, []string{"CD006"}},
+		{"very high density", 40, 36, []string{"CD005", "CD006"}},
+		{"short file is skipped", 10, 10, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := BuildContext("CLAUDE.md", content(tt.lines, tt.instrs))
+			var fired []string
+			for _, r := range engine.Evaluate(ctx) {
+				if r.Passed {
+					fired = append(fired, r.Rule.Code)
+				}
+			}
+			if strings.Join(fired, ",") != strings.Join(tt.wantFired, ",") {
+				t.Errorf("fired %v, want %v (density %v%%)", fired, tt.wantFired, ctx.Metrics["instruction_density_pct"])
 			}
 		})
 	}

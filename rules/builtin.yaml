@@ -56,6 +56,44 @@ rules:
     errorMessage: "High instruction count (~50+ detected, +50 from Claude Code = ~100+)"
     suggestion: "Consider reducing instructions to improve compliance"
 
+  # Instruction density checks (instructions per line, as a percentage).
+  # Files of 20 lines or fewer are skipped: a handful of bullets is not a wall of directives.
+  - code: CD005
+    description: Instruction density is very high
+    severity: error
+    category: instructions
+    dimension: correctness
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: lineCount
+          action: greaterThan
+          value: 20
+        - metric: instruction_density_pct
+          action: greaterThan
+          value: 80
+    errorMessage: "Instruction density is very high (>80% of lines are directives)"
+    suggestion: "Nearly every line is a directive. Add context, rationale and examples, or cut instructions"
+
+  - code: CD006
+    description: Instruction density is high
+    severity: warning
+    category: instructions
+    dimension: correctness
+    primaryOnly: true
+    matchSpec:
+      action: and
+      subMatch:
+        - metric: lineCount
+          action: greaterThan
+          value: 20
+        - metric: instruction_density_pct
+          action: greaterThan
+          value: 50
+    errorMessage: "Instruction density is high (>50% of lines are directives)"
+    suggestion: "Balance instructions with context and examples; LLMs follow explained rules more reliably"
+
   # Linter abuse detection
   - code: CD010
     description: Indentation rules detected
