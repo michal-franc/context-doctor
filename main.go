@@ -27,6 +27,11 @@ var (
 	severitiesFlag  string
 	showVersion     bool
 	staleThreshold  int
+	suppressFlag    string
+	noOrphans       bool
+
+	// cfg holds settings from the repo's .context-doctor.yml
+	cfg rules.Config
 )
 
 func init() {
@@ -38,6 +43,8 @@ func init() {
 	flag.StringVar(&severitiesFlag, "severities", "", "Filter by severities (comma-separated: error,warning,info)")
 	flag.BoolVar(&showVersion, "version", false, "Show version information")
 	flag.IntVar(&staleThreshold, "stale-threshold", 90, "Days before a referenced doc is considered stale")
+	flag.StringVar(&suppressFlag, "suppress", "", "Rule codes to skip (comma-separated, e.g. CD052,CD054); adds to suppress in .context-doctor.yml")
+	flag.BoolVar(&noOrphans, "no-orphans", false, "Skip orphan doc detection in repo reports")
 }
 
 func main() {
@@ -64,6 +71,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	configDir := target
+	if !info.IsDir() {
+		configDir = filepath.Dir(target)
+	}
+	if root := rules.GetGitRoot(configDir); root != "" {
+		configDir = root
+	}
+	cfg, err = rules.LoadConfig(configDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	if suppressFlag != "" {
+		cfg.Suppress = append(cfg.Suppress, strings.Split(suppressFlag, ",")...)
+	}
+
 	if info.IsDir() {
 		files := findContextFiles(target)
 		if len(files) == 0 {
@@ -71,7 +94,7 @@ func main() {
 			printTemplateSuggestion(target)
 			os.Exit(1)
 		}
-		printRepoReport(target, files)
+		printRepoReport(target, configDir, files)
 	} else {
 		analyzeFile(target)
 	}
@@ -171,8 +194,9 @@ func findAllMDFilesWalk(dir string) []string {
 	return files
 }
 
-// findOrphanMDFiles returns .md files not referenced by any context file and not context files themselves
-func findOrphanMDFiles(dir string, analyses []*fileAnalysis) []string {
+// findOrphanMDFiles returns .md files not referenced by any context file and not context files themselves.
+// Files matching ignore patterns (relative to configDir) are skipped.
+func findOrphanMDFiles(dir string, configDir string, ignore []string, analyses []*fileAnalysis) []string {
 	allMD := findAllMDFiles(dir)
 
 	// Build set of referenced paths (relative to dir)
@@ -191,14 +215,40 @@ func findOrphanMDFiles(dir string, analyses []*fileAnalysis) []string {
 		}
 	}
 
+	// Ignore patterns are relative to configDir, which may be above dir
+	prefix := relativeDir(configDir, dir)
+
 	var orphans []string
 	for _, md := range allMD {
 		if referenced[md] {
 			continue
 		}
+		if rules.MatchesAnyGlob(filepath.Join(prefix, md), ignore) {
+			continue
+		}
 		orphans = append(orphans, md)
 	}
 	return orphans
+}
+
+// relativeDir returns dir relative to base, resolving symlinks so that a
+// git root (always a real path) compares correctly with a user-supplied path.
+// Returns "." when dir is not below base.
+func relativeDir(base, dir string) string {
+	resolve := func(p string) string {
+		if abs, err := filepath.Abs(p); err == nil {
+			p = abs
+		}
+		if real, err := filepath.EvalSymlinks(p); err == nil {
+			p = real
+		}
+		return p
+	}
+	rel, err := filepath.Rel(resolve(base), resolve(dir))
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "."
+	}
+	return rel
 }
 
 func findContextFilesWalk(dir string) []string {
@@ -256,6 +306,7 @@ func buildAnalysis(filePath string) (*fileAnalysis, error) {
 	if err != nil {
 		return nil, err
 	}
+	allRules = rules.RemoveSuppressed(allRules, cfg.Suppress)
 
 	ctx := rules.BuildContext(filePath, string(content))
 
@@ -339,7 +390,7 @@ func analyzeFile(filePath string) {
 	printReport(fa, filterOpts)
 }
 
-func printRepoReport(dir string, files []string) {
+func printRepoReport(dir string, configDir string, files []string) {
 	fmt.Println("=" + strings.Repeat("=", 59))
 	fmt.Println("  Repository Context Report")
 	fmt.Println("=" + strings.Repeat("=", 59))
@@ -361,7 +412,8 @@ func printRepoReport(dir string, files []string) {
 	}
 
 	// Multiple context files violation
-	if len(analyses) > 1 {
+	multipleFiles := len(analyses) > 1 && !rules.IsSuppressed("CD060", cfg.Suppress)
+	if multipleFiles {
 		fmt.Println("✗ [CD060] MULTIPLE CONTEXT FILES DETECTED")
 		fmt.Println(strings.Repeat("-", 40))
 		fmt.Println("  A repository should have exactly one context file at the root.")
@@ -455,7 +507,10 @@ func printRepoReport(dir string, files []string) {
 	}
 
 	// Orphan docs section
-	orphans := findOrphanMDFiles(dir, analyses)
+	var orphans []string
+	if !noOrphans {
+		orphans = findOrphanMDFiles(dir, configDir, cfg.OrphanIgnore, analyses)
+	}
 	if len(orphans) > 0 {
 		fmt.Println("ORPHAN DOCS (not referenced by any context file)")
 		fmt.Println(strings.Repeat("-", 40))
@@ -467,7 +522,7 @@ func printRepoReport(dir string, files []string) {
 
 	// Repo totals
 	avgScore := totalScore / len(analyses)
-	if len(analyses) > 1 {
+	if multipleFiles {
 		// Heavy penalty for multiple context files
 		avgScore = max(0, avgScore-30)
 		totalErrors++

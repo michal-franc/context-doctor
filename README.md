@@ -225,6 +225,8 @@ context-doctor [options] <path-to-context-file | directory>
 | `-categories` | Filter by categories (comma-separated) |
 | `-severities` | Filter by severities: error, warning, info (comma-separated) |
 | `-stale-threshold` | Days before a referenced doc is considered stale (default: 90) |
+| `-suppress` | Rule codes to skip, comma-separated (e.g. `CD052,CD054`); adds to `suppress` in the config file |
+| `-no-orphans` | Skip orphan doc detection in repo reports |
 | `-version` | Show version information |
 
 ### Example
@@ -294,6 +296,26 @@ context-doctor scores your context file across four dimensions:
 | Freshness | 20% | How recently the context file was updated in git |
 
 See [RULES.md](RULES.md) for the complete list of 36 built-in rules.
+
+## Configuration
+
+Put a `.context-doctor.yml` (or `.context-doctor.yaml`) at the repository root to tune checks for your repo:
+
+```yaml
+# Rules to skip entirely (e.g. for a knowledge/notes repo with no build commands or code)
+suppress:
+  - CD052
+  - CD054
+  - CD060   # repo has intentional per-agent CLAUDE.md files
+
+# .md files that are intentionally not referenced from any context file
+orphan-ignore:
+  - "sessions/**"
+  - "notes/"          # trailing slash = everything below
+  - "**/CHANGELOG.md"
+```
+
+Suppressed rules are not evaluated and do not affect scores. `orphan-ignore` patterns are relative to the repo root and support `*` (within a path segment), `**` (any depth) and `?`.
 
 ## Custom Rules
 
