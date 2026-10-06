@@ -118,3 +118,43 @@ func TestMatchesAnyGlob(t *testing.T) {
 		})
 	}
 }
+
+func TestIsAgentRoot(t *testing.T) {
+	tests := []struct {
+		name       string
+		relDir     string
+		content    string
+		agentRoots []string
+		want       bool
+	}{
+		{"repo root is never an agent root", ".", AgentRootMarker, []string{"*"}, false},
+		{"plain nested file", "agent-a", "# Agent A", nil, false},
+		{"listed with trailing slash", "agent-a", "# Agent A", []string{"agent-a/"}, true},
+		{"listed without trailing slash", "agent-a", "# Agent A", []string{"agent-a"}, true},
+		{"glob over project dirs", "projects/foo", "# Foo", []string{"projects/*"}, true},
+		{"glob does not match deeper dir", "projects/foo/sub", "# Sub", []string{"projects/*"}, false},
+		{"marker in content", "agent-b", AgentRootMarker + "\n# Agent B", nil, true},
+		{"other dir not listed", "agent-c", "# Agent C", []string{"agent-a/"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsAgentRoot(tt.relDir, tt.content, tt.agentRoots); got != tt.want {
+				t.Errorf("IsAgentRoot(%q, ..., %v) = %v, want %v", tt.relDir, tt.agentRoots, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadConfig_ParsesAgentRoots(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".context-doctor.yml"), []byte("agent-roots:\n  - agent-a/\n  - projects/*\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.AgentRoots) != 2 || cfg.AgentRoots[0] != "agent-a/" || cfg.AgentRoots[1] != "projects/*" {
+		t.Errorf("unexpected agent-roots: %v", cfg.AgentRoots)
+	}
+}

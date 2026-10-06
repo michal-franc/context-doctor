@@ -114,9 +114,11 @@ These rules only fire when scanning a directory (`context-doctor .`).
 
 | Code | Severity | Description |
 |------|----------|-------------|
-| CD060 | error | Multiple CLAUDE.md files detected. A repo should have exactly one CLAUDE.md at the root. Use progressive disclosure to reference supporting docs. (-30 score penalty) |
+| CD060 | error | Multiple CLAUDE.md files detected. A repo should have exactly one CLAUDE.md at the root. Use progressive disclosure to reference supporting docs. (-30 on the repo score; the average file score is shown separately) |
 
 The repo report also lists **orphan docs** — `.md` files in the repo that aren't referenced by any CLAUDE.md. These aren't errors, but help you spot documentation that could be linked or cleaned up.
+
+Files that are intentional agent entry points don't count toward CD060. Declare them with `agent-roots` (directory globs relative to the repo root) in `.context-doctor.yml`, or add `<!-- @context-doctor: agent-root -->` to the file. The root context file always counts.
 
 Exclude intentionally unreferenced files with `orphan-ignore` glob patterns in `.context-doctor.yml`, or skip the check with `-no-orphans`.
 

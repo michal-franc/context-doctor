@@ -411,8 +411,15 @@ func printRepoReport(dir string, configDir string, files []string) {
 		return
 	}
 
-	// Multiple context files violation
-	multipleFiles := len(analyses) > 1 && !rules.IsSuppressed("CD060", cfg.Suppress)
+	// Multiple context files violation (declared agent roots don't count)
+	agentRoots := findAgentRoots(configDir, analyses)
+	counted := 0
+	for _, fa := range analyses {
+		if !agentRoots[fa.FilePath] {
+			counted++
+		}
+	}
+	multipleFiles := counted > 1 && !rules.IsSuppressed("CD060", cfg.Suppress)
 	if multipleFiles {
 		fmt.Println("✗ [CD060] MULTIPLE CONTEXT FILES DETECTED")
 		fmt.Println(strings.Repeat("-", 40))
@@ -420,8 +427,13 @@ func printRepoReport(dir string, configDir string, files []string) {
 		fmt.Println("  Multiple files fragment context and confuse the LLM.")
 		fmt.Println("  Consolidate into a single root context file and use progressive")
 		fmt.Println("  disclosure to reference supporting docs.")
+		fmt.Println("  Intentional per-agent files can be declared with agent-roots in")
+		fmt.Println("  .context-doctor.yml or a " + rules.AgentRootMarker + " marker.")
 		fmt.Println()
 		for _, fa := range analyses {
+			if agentRoots[fa.FilePath] {
+				continue
+			}
 			relPath, err := filepath.Rel(dir, fa.FilePath)
 			if err != nil {
 				relPath = fa.FilePath
@@ -434,12 +446,6 @@ func printRepoReport(dir string, configDir string, files []string) {
 	// Summary table
 	fmt.Printf("FILES (%d context files found)\n", len(analyses))
 	fmt.Println(strings.Repeat("-", 40))
-
-	totalScore := 0
-	totalErrors := 0
-	totalWarnings := 0
-	totalInstructions := 0
-	totalLines := 0
 
 	for _, fa := range analyses {
 		relPath, err := filepath.Rel(dir, fa.FilePath)
@@ -454,7 +460,11 @@ func printRepoReport(dir string, configDir string, files []string) {
 			icon = "⚠"
 		}
 
-		fmt.Printf("  %s %s\n", icon, relPath)
+		agentTag := ""
+		if agentRoots[fa.FilePath] {
+			agentTag = " (agent root)"
+		}
+		fmt.Printf("  %s %s%s\n", icon, relPath, agentTag)
 		dimCompact := formatDimensionCompact(fa.DimensionScores)
 		fmt.Printf("      Score: %d/100 %s  Lines: %d  Instructions: ~%d  Errors: %d  Warnings: %d\n",
 			fa.Score, dimCompact, fa.Ctx.LineCount, fa.Ctx.InstructionCount, fa.Errors, fa.Warnings)
@@ -463,12 +473,6 @@ func printRepoReport(dir string, configDir string, files []string) {
 		if len(fa.Refs) > 0 {
 			printRepoRefTree(fa.Refs, "      ")
 		}
-
-		totalScore += fa.Score
-		totalErrors += fa.Errors
-		totalWarnings += fa.Warnings
-		totalInstructions += fa.AggMetrics.TotalInstructionCount
-		totalLines += fa.AggMetrics.TotalLineCount
 	}
 	fmt.Println()
 
@@ -520,22 +524,79 @@ func printRepoReport(dir string, configDir string, files []string) {
 		fmt.Println()
 	}
 
-	// Repo totals
-	avgScore := totalScore / len(analyses)
-	if multipleFiles {
-		// Heavy penalty for multiple context files
-		avgScore = max(0, avgScore-30)
-		totalErrors++
-	}
+	// Repo totals: file quality and repo structure are reported separately
+	sum := summarizeRepo(analyses, multipleFiles)
 	fmt.Println("REPO SUMMARY")
 	fmt.Println(strings.Repeat("-", 40))
-	fmt.Printf("  Files:        %d\n", len(analyses))
-	fmt.Printf("  Total lines:  %d\n", totalLines)
-	fmt.Printf("  Total instr:  ~%d\n", totalInstructions)
-	fmt.Printf("  Errors:       %d\n", totalErrors)
-	fmt.Printf("  Warnings:     %d\n", totalWarnings)
-	fmt.Printf("  Avg score:    %d/100\n", avgScore)
+	if len(agentRoots) > 0 {
+		fmt.Printf("  Files:          %d (%d agent roots)\n", len(analyses), len(agentRoots))
+	} else {
+		fmt.Printf("  Files:          %d\n", len(analyses))
+	}
+	fmt.Printf("  Total lines:    %d\n", sum.TotalLines)
+	fmt.Printf("  Total instr:    ~%d\n", sum.TotalInstructions)
+	fmt.Printf("  Errors:         %d\n", sum.Errors)
+	fmt.Printf("  Warnings:       %d\n", sum.Warnings)
+	fmt.Printf("  Avg file score: %d/100\n", sum.AvgFileScore)
+	if len(sum.StructureIssues) == 0 {
+		fmt.Println("  Repo structure: OK")
+	} else {
+		fmt.Printf("  Repo structure: %d issue(s) (%s, -%d)\n", len(sum.StructureIssues),
+			strings.Join(sum.StructureIssues, ", "), sum.AvgFileScore-sum.RepoScore)
+	}
+	fmt.Printf("  Repo score:     %d/100\n", sum.RepoScore)
 	fmt.Println()
+}
+
+// multipleFilesPenalty is subtracted from the repo score when CD060 fires.
+const multipleFilesPenalty = 30
+
+// repoSummary holds repo-wide totals. File-level quality (AvgFileScore,
+// Errors, Warnings) is kept apart from repo-structure issues such as CD060,
+// which only affect RepoScore.
+type repoSummary struct {
+	AvgFileScore      int
+	RepoScore         int
+	Errors            int
+	Warnings          int
+	TotalLines        int
+	TotalInstructions int
+	StructureIssues   []string
+}
+
+func summarizeRepo(analyses []*fileAnalysis, multipleFiles bool) repoSummary {
+	var sum repoSummary
+	if len(analyses) == 0 {
+		return sum
+	}
+	totalScore := 0
+	for _, fa := range analyses {
+		totalScore += fa.Score
+		sum.Errors += fa.Errors
+		sum.Warnings += fa.Warnings
+		sum.TotalInstructions += fa.AggMetrics.TotalInstructionCount
+		sum.TotalLines += fa.AggMetrics.TotalLineCount
+	}
+	sum.AvgFileScore = totalScore / len(analyses)
+	sum.RepoScore = sum.AvgFileScore
+	if multipleFiles {
+		sum.StructureIssues = append(sum.StructureIssues, "CD060")
+		sum.RepoScore = max(0, sum.RepoScore-multipleFilesPenalty)
+	}
+	return sum
+}
+
+// findAgentRoots returns the context files that are declared agent roots,
+// keyed by FilePath.
+func findAgentRoots(configDir string, analyses []*fileAnalysis) map[string]bool {
+	roots := make(map[string]bool)
+	for _, fa := range analyses {
+		relDir := relativeDir(configDir, filepath.Dir(fa.FilePath))
+		if rules.IsAgentRoot(relDir, fa.Ctx.Content, cfg.AgentRoots) {
+			roots[fa.FilePath] = true
+		}
+	}
+	return roots
 }
 
 func buildFilterOpts() rules.FilterOptions {

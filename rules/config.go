@@ -19,6 +19,33 @@ type Config struct {
 	Suppress []string `yaml:"suppress,omitempty"`
 	// OrphanIgnore lists glob patterns of .md files excluded from orphan detection.
 	OrphanIgnore []string `yaml:"orphan-ignore,omitempty"`
+	// AgentRoots lists directories (glob patterns) whose context files are
+	// intentional, separately scoped agent entry points. They don't count
+	// toward CD060 (multiple context files).
+	AgentRoots []string `yaml:"agent-roots,omitempty"`
+}
+
+// AgentRootMarker marks a context file as an intentional agent entry point.
+const AgentRootMarker = "<!-- @context-doctor: agent-root -->"
+
+// IsAgentRoot reports whether a context file is a declared agent root, either
+// by its directory (relative to the config root) matching agentRoots or by
+// containing AgentRootMarker. The repo root itself is never an agent root.
+func IsAgentRoot(relDir string, content string, agentRoots []string) bool {
+	relDir = filepath.ToSlash(filepath.Clean(relDir))
+	if relDir == "." {
+		return false
+	}
+	if strings.Contains(content, AgentRootMarker) {
+		return true
+	}
+	for _, root := range agentRoots {
+		root = strings.TrimSuffix(filepath.ToSlash(strings.TrimSpace(root)), "/")
+		if root != "" && MatchesAnyGlob(relDir, []string{root}) {
+			return true
+		}
+	}
+	return false
 }
 
 // LoadConfig reads the config file from dir. A missing file is not an error

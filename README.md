@@ -249,7 +249,8 @@ context-doctor -severities error ./CLAUDE.md
 
 When you pass a directory, context-doctor finds all context files (respecting `.gitignore`) and produces a consolidated repo report:
 
-- Enforces a single context file per repo (multiple files = error with -30 score penalty)
+- Enforces a single context file per repo (multiple files = CD060, -30 on the repo score; intentional per-agent files can be declared as agent roots)
+- Reports the average file score separately from repo-structure issues, so CD060 doesn't hide file quality
 - Validates referenced docs exist and aren't stale
 - Recursively follows references (docs referencing other docs), with cycle detection
 - Finds orphan `.md` files not referenced by any context file
@@ -307,6 +308,13 @@ suppress:
   - CD052
   - CD054
   - CD060   # repo has intentional per-agent CLAUDE.md files
+
+# Directories whose CLAUDE.md is an intentional, separately scoped agent entry point.
+# They don't count toward CD060. A file can also opt in with the marker
+# <!-- @context-doctor: agent-root -->
+agent-roots:
+  - agent-a/
+  - projects/*
 
 # .md files that are intentionally not referenced from any context file
 orphan-ignore:

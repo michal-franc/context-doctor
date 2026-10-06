@@ -323,3 +323,89 @@ func TestRelativeDir(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// summarizeRepo / findAgentRoots
+// =============================================================================
+
+func scored(score, errors, warnings int) *fileAnalysis {
+	return &fileAnalysis{
+		Score:      score,
+		Errors:     errors,
+		Warnings:   warnings,
+		AggMetrics: rules.AggregateMetrics{TotalLineCount: 10, TotalInstructionCount: 4},
+	}
+}
+
+func TestSummarizeRepo(t *testing.T) {
+	files := []*fileAnalysis{scored(92, 0, 1), scored(96, 1, 0), scored(98, 0, 0)}
+
+	tests := []struct {
+		name          string
+		multipleFiles bool
+		wantAvg       int
+		wantRepo      int
+		wantErrors    int
+		wantIssues    []string
+	}{
+		{"single-file structure is fine", false, 95, 95, 1, nil},
+		{"CD060 lowers only the repo score", true, 95, 65, 1, []string{"CD060"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := summarizeRepo(files, tt.multipleFiles)
+			if got.AvgFileScore != tt.wantAvg || got.RepoScore != tt.wantRepo {
+				t.Errorf("scores: avg %d repo %d, want avg %d repo %d", got.AvgFileScore, got.RepoScore, tt.wantAvg, tt.wantRepo)
+			}
+			if got.Errors != tt.wantErrors || got.Warnings != 1 {
+				t.Errorf("errors/warnings: %d/%d, want %d/1", got.Errors, got.Warnings, tt.wantErrors)
+			}
+			if got.TotalLines != 30 || got.TotalInstructions != 12 {
+				t.Errorf("totals: lines %d instr %d, want 30/12", got.TotalLines, got.TotalInstructions)
+			}
+			if !reflect.DeepEqual(got.StructureIssues, tt.wantIssues) {
+				t.Errorf("issues: %v, want %v", got.StructureIssues, tt.wantIssues)
+			}
+		})
+	}
+}
+
+func TestSummarizeRepo_PenaltyFloorsAtZero(t *testing.T) {
+	got := summarizeRepo([]*fileAnalysis{scored(20, 0, 0)}, true)
+	if got.RepoScore != 0 || got.AvgFileScore != 20 {
+		t.Errorf("got avg %d repo %d, want avg 20 repo 0", got.AvgFileScore, got.RepoScore)
+	}
+}
+
+func TestFindAgentRoots(t *testing.T) {
+	root := t.TempDir()
+	analysis := func(rel, content string) *fileAnalysis {
+		return &fileAnalysis{
+			FilePath: filepath.Join(root, rel),
+			Ctx:      rules.BuildContext(rel, content),
+		}
+	}
+	for _, d := range []string{"agent-a", "agent-b", "docs"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	analyses := []*fileAnalysis{
+		analysis("CLAUDE.md", "# Root"),
+		analysis("agent-a/CLAUDE.md", "# A"),
+		analysis("agent-b/CLAUDE.md", rules.AgentRootMarker+"\n# B"),
+		analysis("docs/CLAUDE.md", "# Docs"),
+	}
+
+	cfg = rules.Config{AgentRoots: []string{"agent-a/"}}
+	t.Cleanup(func() { cfg = rules.Config{} })
+
+	got := findAgentRoots(root, analyses)
+	want := map[string]bool{
+		filepath.Join(root, "agent-a/CLAUDE.md"): true,
+		filepath.Join(root, "agent-b/CLAUDE.md"): true,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
