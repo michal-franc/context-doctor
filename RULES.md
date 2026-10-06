@@ -116,6 +116,18 @@ These rules only fire when scanning a directory (`context-doctor .`).
 
 The repo report also lists **orphan docs** — `.md` files in the repo that aren't referenced by any CLAUDE.md. These aren't errors, but help you spot documentation that could be linked or cleaned up.
 
+Exclude intentionally unreferenced files with `orphan-ignore` glob patterns in `.context-doctor.yml`, or skip the check with `-no-orphans`.
+
+## Suppressing Rules
+
+Any rule, including CD060, can be turned off for a repo by listing its code under `suppress` in `.context-doctor.yml` at the repository root, or for a single run with `-suppress CD052,CD054`. Suppressed rules are not evaluated and do not count toward scores.
+
+```yaml
+suppress:
+  - CD052
+  - CD054
+```
+
 ## Custom Rules
 
 You can create custom rules by adding YAML files to a `.context-doctor/` directory. Rules follow this structure:

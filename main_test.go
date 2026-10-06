@@ -1,6 +1,10 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"sort"
 	"testing"
 
 	"context-doctor/rules"
@@ -232,4 +236,90 @@ func TestFormatDimensionCompact(t *testing.T) {
 			t.Errorf("got %q, want %q", got, want)
 		}
 	})
+}
+
+// =============================================================================
+// findOrphanMDFiles
+// =============================================================================
+
+// writeMDFiles creates empty files under dir (no git repo, so the walk fallback is used).
+func writeMDFiles(t *testing.T, dir string, paths ...string) {
+	t.Helper()
+	for _, p := range paths {
+		full := filepath.Join(dir, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("# doc"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestFindOrphanMDFiles_IgnorePatterns(t *testing.T) {
+	dir := t.TempDir()
+	writeMDFiles(t, dir, "README.md", "docs/guide.md", "notes/2026/jan.md", "sessions/log.md")
+
+	tests := []struct {
+		name   string
+		ignore []string
+		want   []string
+	}{
+		{"no ignore patterns", nil,
+			[]string{"README.md", "docs/guide.md", "notes/2026/jan.md", "sessions/log.md"}},
+		{"double star and trailing slash", []string{"notes/**", "sessions/"},
+			[]string{"README.md", "docs/guide.md"}},
+		{"single file pattern", []string{"README.md"},
+			[]string{"docs/guide.md", "notes/2026/jan.md", "sessions/log.md"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findOrphanMDFiles(dir, dir, tt.ignore, nil)
+			sort.Strings(got)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindOrphanMDFiles_ScanningSubdirOfConfigRoot(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "project")
+	writeMDFiles(t, sub, "notes/a.md", "docs/b.md")
+
+	// Patterns are written relative to the config root, not the scanned dir
+	got := findOrphanMDFiles(sub, root, []string{"project/notes/**"}, nil)
+	want := []string{"docs/b.md"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestRelativeDir(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "a", "b")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		base string
+		dir  string
+		want string
+	}{
+		{"same directory", root, root, "."},
+		{"nested directory", root, sub, filepath.Join("a", "b")},
+		{"dir outside base", sub, root, "."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := relativeDir(tt.base, tt.dir); got != tt.want {
+				t.Errorf("relativeDir(%q, %q) = %q, want %q", tt.base, tt.dir, got, tt.want)
+			}
+		})
+	}
 }
