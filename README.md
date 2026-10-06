@@ -41,7 +41,7 @@ A [custom prompt for updating CLAUDE.md](https://www.aihero.dev/a-complete-guide
 
 ### 3. Using context-doctor (self-reinforcing loop)
 
-context-doctor provides a standalone binary with 36 built-in rules (based on research and best practices) that evaluates your context file and suggests specific changes.
+context-doctor provides a standalone binary with 38 built-in rules (based on research and best practices) that evaluates your context file and suggests specific changes.
 
 ![Using context-doctor](using_context_doctor.jpg)
 
@@ -295,7 +295,7 @@ context-doctor scores your context file across four dimensions:
 | Compliance | 20% | Best practices (progressive disclosure, negative instructions, code examples) |
 | Freshness | 20% | How recently the context file was updated in git |
 
-See [RULES.md](RULES.md) for the complete list of 36 built-in rules.
+See [RULES.md](RULES.md) for the complete list of 38 built-in rules.
 
 ## Configuration
 

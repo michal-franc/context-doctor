@@ -589,6 +589,16 @@ func printReport(fa *fileAnalysis, filterOpts rules.FilterOptions) {
 	}
 	fmt.Printf("  Instructions: ~%d (+50 Claude = ~%d) (%s)\n", ctx.InstructionCount, effective, instrStatus)
 
+	if density, ok := ctx.Metrics["instruction_density_pct"].(int); ok {
+		densityStatus := "OK"
+		if density > 80 {
+			densityStatus = "HIGH"
+		} else if density > 50 {
+			densityStatus = "MODERATE"
+		}
+		fmt.Printf("  Density:      %d%% of lines are instructions (%s)\n", density, densityStatus)
+	}
+
 	hasProgDisc := ctx.Metrics["hasProgressiveDisclosure"].(bool)
 	pdStatus := "NO"
 	if hasProgDisc {

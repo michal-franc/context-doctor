@@ -90,8 +90,18 @@ func BuildContext(filePath string, content string) *AnalysisContext {
 	// Add derived metrics
 	ctx.Metrics["hasProgressiveDisclosure"] = hasProgressiveDisclosure(content)
 	ctx.Metrics["progressiveDisclosureRefs"] = findProgressiveDisclosureRefs(content)
+	ctx.Metrics["instruction_density_pct"] = InstructionDensityPercent(ctx.InstructionCount, ctx.LineCount)
 
 	return ctx
+}
+
+// InstructionDensityPercent returns instructions per line as a whole
+// percentage (0-100). A file where every line is a directive is 100.
+func InstructionDensityPercent(instructions, lines int) int {
+	if lines <= 0 {
+		return 0
+	}
+	return instructions * 100 / lines
 }
 
 // listItemPattern matches list items (bullets and numbered)

@@ -21,6 +21,8 @@ Rules marked with **(primary)** below only run against CLAUDE.md. All other rule
 |------|----------|-------------|
 | CD003 | error | Too many instructions (>100 detected). LLMs reliably follow 150-200 instructions, and Claude Code adds ~50 of its own. |
 | CD004 | warning | High instruction count (~50+ detected). Consider reducing instructions to improve compliance. |
+| CD005 | error | Instruction density over 80% (instructions per line, files over 20 lines). Nearly every line is a directive; add context and examples. |
+| CD006 | warning | Instruction density over 50% (files over 20 lines). Balance instructions with context, rationale and examples. |
 
 ## Linter Abuse
 
