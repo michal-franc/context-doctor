@@ -29,6 +29,7 @@ var (
 	staleThreshold  int
 	suppressFlag    string
 	noOrphans       bool
+	outputFormat    string
 
 	// cfg holds settings from the repo's .context-doctor.yml
 	cfg rules.Config
@@ -45,6 +46,7 @@ func init() {
 	flag.IntVar(&staleThreshold, "stale-threshold", 90, "Days before a referenced doc is considered stale")
 	flag.StringVar(&suppressFlag, "suppress", "", "Rule codes to skip (comma-separated, e.g. CD052,CD054); adds to suppress in .context-doctor.yml")
 	flag.BoolVar(&noOrphans, "no-orphans", false, "Skip orphan doc detection in repo reports")
+	flag.StringVar(&outputFormat, "format", "text", "Output format: text or json")
 }
 
 func main() {
@@ -59,6 +61,11 @@ func main() {
 		fmt.Println("Usage: context-doctor [options] <path-to-context-file | directory>")
 		fmt.Println("\nOptions:")
 		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if outputFormat != "text" && outputFormat != "json" {
+		fmt.Fprintf(os.Stderr, "Error: unknown -format %q (use text or json)\n", outputFormat)
 		os.Exit(1)
 	}
 
@@ -91,10 +98,21 @@ func main() {
 		files := findContextFiles(target)
 		if len(files) == 0 {
 			fmt.Fprintf(os.Stderr, "No context files found (CLAUDE.md, AGENTS.md) in %s\n", target)
-			printTemplateSuggestion(target)
+			if outputFormat != "json" {
+				printTemplateSuggestion(target)
+			}
 			os.Exit(1)
 		}
-		printRepoReport(target, configDir, files)
+		ra := buildRepoAnalysis(target, configDir, files)
+		if ra == nil {
+			fmt.Fprintln(os.Stderr, "No files could be analyzed.")
+			os.Exit(1)
+		}
+		if outputFormat == "json" {
+			exitOnErr(printJSON(newRepoJSON(ra)))
+		} else {
+			printRepoReport(ra)
+		}
 	} else {
 		analyzeFile(target)
 	}
@@ -387,15 +405,27 @@ func analyzeFile(filePath string) {
 	}
 
 	filterOpts := buildFilterOpts()
+	if outputFormat == "json" {
+		exitOnErr(printJSON(newFileJSON(fa, filePath, filterOpts)))
+		return
+	}
 	printReport(fa, filterOpts)
 }
 
-func printRepoReport(dir string, configDir string, files []string) {
-	fmt.Println("=" + strings.Repeat("=", 59))
-	fmt.Println("  Repository Context Report")
-	fmt.Println("=" + strings.Repeat("=", 59))
-	fmt.Println()
+// repoAnalysis holds the analysis of every context file in a directory plus
+// repo-level findings, independent of output format.
+type repoAnalysis struct {
+	Dir           string
+	Files         []*fileAnalysis
+	AgentRoots    map[string]bool
+	MultipleFiles bool // CD060 fired
+	Orphans       []string
+	Summary       repoSummary
+}
 
+// buildRepoAnalysis analyzes each context file and computes repo-level
+// findings. Returns nil if no file could be analyzed.
+func buildRepoAnalysis(dir string, configDir string, files []string) *repoAnalysis {
 	var analyses []*fileAnalysis
 	for _, f := range files {
 		fa, err := buildAnalysis(f)
@@ -405,10 +435,8 @@ func printRepoReport(dir string, configDir string, files []string) {
 		}
 		analyses = append(analyses, fa)
 	}
-
 	if len(analyses) == 0 {
-		fmt.Println("  No files could be analyzed.")
-		return
+		return nil
 	}
 
 	// Multiple context files violation (declared agent roots don't count)
@@ -420,7 +448,31 @@ func printRepoReport(dir string, configDir string, files []string) {
 		}
 	}
 	multipleFiles := counted > 1 && !rules.IsSuppressed("CD060", cfg.Suppress)
-	if multipleFiles {
+
+	var orphans []string
+	if !noOrphans {
+		orphans = findOrphanMDFiles(dir, configDir, cfg.OrphanIgnore, analyses)
+	}
+
+	return &repoAnalysis{
+		Dir:           dir,
+		Files:         analyses,
+		AgentRoots:    agentRoots,
+		MultipleFiles: multipleFiles,
+		Orphans:       orphans,
+		Summary:       summarizeRepo(analyses, multipleFiles),
+	}
+}
+
+func printRepoReport(ra *repoAnalysis) {
+	dir, analyses, agentRoots := ra.Dir, ra.Files, ra.AgentRoots
+
+	fmt.Println("=" + strings.Repeat("=", 59))
+	fmt.Println("  Repository Context Report")
+	fmt.Println("=" + strings.Repeat("=", 59))
+	fmt.Println()
+
+	if ra.MultipleFiles {
 		fmt.Println("✗ [CD060] MULTIPLE CONTEXT FILES DETECTED")
 		fmt.Println(strings.Repeat("-", 40))
 		fmt.Println("  A repository should have exactly one context file at the root.")
@@ -511,21 +563,17 @@ func printRepoReport(dir string, configDir string, files []string) {
 	}
 
 	// Orphan docs section
-	var orphans []string
-	if !noOrphans {
-		orphans = findOrphanMDFiles(dir, configDir, cfg.OrphanIgnore, analyses)
-	}
-	if len(orphans) > 0 {
+	if len(ra.Orphans) > 0 {
 		fmt.Println("ORPHAN DOCS (not referenced by any context file)")
 		fmt.Println(strings.Repeat("-", 40))
-		for _, o := range orphans {
+		for _, o := range ra.Orphans {
 			fmt.Printf("  ? %s\n", o)
 		}
 		fmt.Println()
 	}
 
 	// Repo totals: file quality and repo structure are reported separately
-	sum := summarizeRepo(analyses, multipleFiles)
+	sum := ra.Summary
 	fmt.Println("REPO SUMMARY")
 	fmt.Println(strings.Repeat("-", 40))
 	if len(agentRoots) > 0 {
