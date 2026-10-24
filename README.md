@@ -41,7 +41,7 @@ A [custom prompt for updating CLAUDE.md](https://www.aihero.dev/a-complete-guide
 
 ### 3. Using context-doctor (self-reinforcing loop)
 
-context-doctor provides a standalone binary with 36 built-in rules (based on research and best practices) that evaluates your context file and suggests specific changes.
+context-doctor provides a standalone binary with 38 built-in rules (based on research and best practices) that evaluates your context file and suggests specific changes.
 
 ![Using context-doctor](using_context_doctor.jpg)
 
@@ -225,6 +225,9 @@ context-doctor [options] <path-to-context-file | directory>
 | `-categories` | Filter by categories (comma-separated) |
 | `-severities` | Filter by severities: error, warning, info (comma-separated) |
 | `-stale-threshold` | Days before a referenced doc is considered stale (default: 90) |
+| `-suppress` | Rule codes to skip, comma-separated (e.g. `CD052,CD054`); adds to `suppress` in the config file |
+| `-no-orphans` | Skip orphan doc detection in repo reports |
+| `-format` | Output format: `text` (default) or `json` |
 | `-version` | Show version information |
 
 ### Example
@@ -247,7 +250,8 @@ context-doctor -severities error ./CLAUDE.md
 
 When you pass a directory, context-doctor finds all context files (respecting `.gitignore`) and produces a consolidated repo report:
 
-- Enforces a single context file per repo (multiple files = error with -30 score penalty)
+- Enforces a single context file per repo (multiple files = CD060, -30 on the repo score; intentional per-agent files can be declared as agent roots)
+- Reports the average file score separately from repo-structure issues, so CD060 doesn't hide file quality
 - Validates referenced docs exist and aren't stale
 - Recursively follows references (docs referencing other docs), with cycle detection
 - Finds orphan `.md` files not referenced by any context file
@@ -293,7 +297,68 @@ context-doctor scores your context file across four dimensions:
 | Compliance | 20% | Best practices (progressive disclosure, negative instructions, code examples) |
 | Freshness | 20% | How recently the context file was updated in git |
 
-See [RULES.md](RULES.md) for the complete list of 36 built-in rules.
+See [RULES.md](RULES.md) for the complete list of 38 built-in rules.
+
+## JSON output
+
+`-format json` prints a machine-readable report for CI pipelines and dashboards. `-categories` and `-severities` filter the `violations` lists.
+
+```bash
+context-doctor -format json CLAUDE.md | jq '.score'
+
+# Fail CI when any error-level rule fires
+context-doctor -format json -severities error CLAUDE.md | jq -e '.violations | length == 0'
+```
+
+A single file produces:
+
+```json
+{
+  "file": "CLAUDE.md",
+  "score": 72,
+  "dimensions": { "correctness": 95, "style": 75, "compliance": 87, "freshness": 10 },
+  "errors": 0,
+  "warnings": 9,
+  "metrics": { "lineCount": 60, "instructionCount": 37, "instructionDensityPct": 61, "daysSinceUpdate": 262, "...": "..." },
+  "violations": [
+    { "code": "CD006", "severity": "warning", "category": "instructions", "dimension": "correctness",
+      "message": "Instruction density is high (>50% of lines are directives)", "suggestion": "..." }
+  ],
+  "passedRules": ["CD001", "CD002"],
+  "goodPractices": ["CD040"],
+  "references": [ { "path": "docs/a.md", "exists": true, "daysSinceUpdate": 3, "stale": false, "violations": [] } ],
+  "duplicates": []
+}
+```
+
+A directory produces `{ "directory", "files": [ <file report>, ... ], "structureIssues", "orphans", "summary" }`, where `summary` holds `avgFileScore`, `repoScore`, `errors`, `warnings` and totals. Values that are unknown (e.g. `daysSinceUpdate` outside git) are `null`. Fields may be added in future versions but won't be renamed or removed.
+
+## Configuration
+
+Put a `.context-doctor.yml` (or `.context-doctor.yaml`) at the repository root to tune checks for your repo:
+
+```yaml
+# Rules to skip entirely (e.g. for a knowledge/notes repo with no build commands or code)
+suppress:
+  - CD052
+  - CD054
+  - CD060   # repo has intentional per-agent CLAUDE.md files
+
+# Directories whose CLAUDE.md is an intentional, separately scoped agent entry point.
+# They don't count toward CD060. A file can also opt in with the marker
+# <!-- @context-doctor: agent-root -->
+agent-roots:
+  - agent-a/
+  - projects/*
+
+# .md files that are intentionally not referenced from any context file
+orphan-ignore:
+  - "sessions/**"
+  - "notes/"          # trailing slash = everything below
+  - "**/CHANGELOG.md"
+```
+
+Suppressed rules are not evaluated and do not affect scores. `orphan-ignore` patterns are relative to the repo root and support `*` (within a path segment), `**` (any depth) and `?`.
 
 ## Custom Rules
 

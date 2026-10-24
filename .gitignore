@@ -1,0 +1,9 @@
+.agent-logs/
+/issues/
+/retros/
+/sessions/
+/workflow.yaml
+/project.yaml
+/.health/
+/notes/
+/context-doctor

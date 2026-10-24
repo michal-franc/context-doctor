@@ -21,6 +21,8 @@ Rules marked with **(primary)** below only run against CLAUDE.md. All other rule
 |------|----------|-------------|
 | CD003 | error | Too many instructions (>100 detected). LLMs reliably follow 150-200 instructions, and Claude Code adds ~50 of its own. |
 | CD004 | warning | High instruction count (~50+ detected). Consider reducing instructions to improve compliance. |
+| CD005 | error | Instruction density over 80% (instructions per line, files over 20 lines). Nearly every line is a directive; add context and examples. |
+| CD006 | warning | Instruction density over 50% (files over 20 lines). Balance instructions with context, rationale and examples. |
 
 ## Linter Abuse
 
@@ -112,9 +114,23 @@ These rules only fire when scanning a directory (`context-doctor .`).
 
 | Code | Severity | Description |
 |------|----------|-------------|
-| CD060 | error | Multiple CLAUDE.md files detected. A repo should have exactly one CLAUDE.md at the root. Use progressive disclosure to reference supporting docs. (-30 score penalty) |
+| CD060 | error | Multiple CLAUDE.md files detected. A repo should have exactly one CLAUDE.md at the root. Use progressive disclosure to reference supporting docs. (-30 on the repo score; the average file score is shown separately) |
 
 The repo report also lists **orphan docs** — `.md` files in the repo that aren't referenced by any CLAUDE.md. These aren't errors, but help you spot documentation that could be linked or cleaned up.
+
+Files that are intentional agent entry points don't count toward CD060. Declare them with `agent-roots` (directory globs relative to the repo root) in `.context-doctor.yml`, or add `<!-- @context-doctor: agent-root -->` to the file. The root context file always counts.
+
+Exclude intentionally unreferenced files with `orphan-ignore` glob patterns in `.context-doctor.yml`, or skip the check with `-no-orphans`.
+
+## Suppressing Rules
+
+Any rule, including CD060, can be turned off for a repo by listing its code under `suppress` in `.context-doctor.yml` at the repository root, or for a single run with `-suppress CD052,CD054`. Suppressed rules are not evaluated and do not count toward scores.
+
+```yaml
+suppress:
+  - CD052
+  - CD054
+```
 
 ## Custom Rules
 

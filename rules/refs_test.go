@@ -435,3 +435,39 @@ func TestEnrichContextWithRefMetrics_Empty(t *testing.T) {
 		t.Errorf("expected broken_references_count=0, got %v", ctx.Metrics["broken_references_count"])
 	}
 }
+
+func TestGetGitLastModified_RelativePathInSubdir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = tmpDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v failed: %s", args, out)
+		}
+	}
+	run("git", "init")
+	run("git", "config", "user.email", "test@test.com")
+	run("git", "config", "user.name", "Test")
+
+	subDir := filepath.Join(tmpDir, ".claude", "rules")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, "checklist.md"), []byte("# Rules"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	run("git", "add", ".claude/rules/checklist.md")
+	run("git", "commit", "-m", "add rules")
+
+	// Simulate a CLI invocation from the repo root with a relative path.
+	t.Chdir(tmpDir)
+	relPath := filepath.Join(".claude", "rules", "checklist.md")
+
+	if got := getGitLastModified(relPath); got.IsZero() {
+		t.Fatalf("expected commit time for relative path %q, got zero time", relPath)
+	}
+	if score, days := CalculateFreshnessScore(relPath); score != 100 || days != 0 {
+		t.Errorf("expected (100, 0) for freshly committed file, got (%d, %d)", score, days)
+	}
+}
